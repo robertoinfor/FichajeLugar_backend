@@ -16,7 +16,6 @@ const notion = new Client ({auth: authToken});
 
 app.post('/NotionAPIPost', jsonParser, async(req, res) => {
     const {Nombre, Pwd, Email, Rol, Fecha_alta} = req.body;
-
     try { 
         const response = await notion.pages.create({
             parent: {
@@ -51,9 +50,9 @@ app.post('/NotionAPIPost', jsonParser, async(req, res) => {
                     ],
                 },
                 Rol: {
-                    rich_text: [
+                    select: [
                         {
-                            text: {
+                            select: {
                                 content: Rol
                             },
                         },
@@ -77,6 +76,24 @@ app.post('/NotionAPIPost', jsonParser, async(req, res) => {
     }
 });
 
+app.get('/NotionAPIGet', async(req, res) => {
+    try { 
+        const response = await notion.databases.query({
+            database_id: notionDbID, 
+            sorts: [
+                {
+                    timestamp: 'created_time',
+                    direction: 'descending',
+                },
+            ]
+        });
+
+        res.send(response);
+        const {results} = response;
+    } catch (error) {
+        console.log(error);
+    }
+});
 app.get('/NotionAPIGet', async(req, res) => {
     try { 
         const response = await notion.databases.query({
