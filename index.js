@@ -112,7 +112,7 @@ app.post('/login', async (req, res) => {
         const usuario = response.results[0];
         const storedPassword = usuario.properties.Pwd.rich_text[0]?.text.content;
 
-        if (storedPassword !== password) {
+        if (!await bcrypt.compare(password, storedPassword)) {
             return res.status(401).json({ message: "Contraseña incorrecta" });
         }
 
@@ -154,7 +154,8 @@ app.delete('/DeleteUser/:id', async (req, res) => {
 
 app.put("/UpdateUser/:id", async (req, res) => {
     const { id } = req.params;
-    const { Nombre, Pwd, Email, Rol, Fecha_alta } = req.body;
+    const { Nombre, Pwd, Email, Rol, Fecha_alta, Horas } = req.body;
+    const hash = await bcrypt.hash(Pwd, 10)
 
     try {
         const response = await notion.pages.update(
@@ -163,20 +164,20 @@ app.put("/UpdateUser/:id", async (req, res) => {
                 properties: {
                     Nombre: { title: [{ text: { content: Nombre } }] },
                     Email: { email: Email },
-                    Pwd: { rich_text: [{ text: { content: Pwd }, },], },
+                    Pwd: { rich_text: [{ text: { content: hash }, },], },
                     Rol: { select: { name: Rol } },
                     Fecha_alta: { date: { start: Fecha_alta } },
+                    Horas: {number: Horas}
                 },
             },
         );
-        res.status(200).json({ message: "Usuario actualizado", data: response.data });
     } catch (error) {
         console.error("Error actualizando usuario:", error);
         res.status(500).json({ error: error.message });
     }
 });
 
-app.get('/GetUserName/:name', async (req, res) => {
+app.get('/GetUserByName/:name', async (req, res) => {
     const { name } = req.params;
     try {
         const response = await notion.databases.query({
@@ -238,6 +239,44 @@ app.get('/GetSigningUser/:id', async (req, res) => {
 
         res.send(response);
         const { results } = response;
+    } catch (error) {
+        console.log(error);
+    }
+});
+
+app.post('/PostSigning', jsonParser, async (req, res) => {
+    const { Empleado, Tipo, Fecha_hora } = req.body;
+    try {
+        const response = await notion.pages.create({
+            parent: {
+                database_id: fichajeDb,
+            },
+            properties: {
+                Fecha_hora: {
+                    date: {
+                        start: Fecha_hora
+                    },
+                },
+                Empleado: {
+                    relation: [{
+                        id: Empleado
+                    },],
+                },
+                Tipo: {
+                    select: {
+                        name: Tipo,
+                    }
+                },
+                Id: {
+                    title: [{
+                        text: {
+                            content: ""
+                        }
+                    }]
+                }
+            },
+        });
+        res.send(response);
     } catch (error) {
         console.log(error);
     }
