@@ -158,6 +158,11 @@ app.put("/UpdateUser/:id", async (req, res) => {
     const hash = await bcrypt.hash(Pwd, 10)
 
     try {
+        const user = await notion.pages.retrieve({ page_id: id });
+
+        const currentPwd = user.properties.Pwd.rich_text[0]?.text.content || "";
+
+        const hash = Pwd === currentPwd ? currentPwd : await bcrypt.hash(Pwd, 10);
         const response = await notion.pages.update(
             {
                 page_id: id,
