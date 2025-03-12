@@ -172,7 +172,7 @@ app.put("/UpdateUser/:id", async (req, res) => {
                     Pwd: { rich_text: [{ text: { content: hash }, },], },
                     Rol: { select: { name: Rol } },
                     Fecha_alta: { date: { start: Fecha_alta } },
-                    Horas: {number: Horas}
+                    Horas: { number: Horas }
                 },
             },
         );
@@ -250,7 +250,7 @@ app.get('/GetSigningUser/:id', async (req, res) => {
 });
 
 app.post('/PostSigning', jsonParser, async (req, res) => {
-    const { Empleado, Tipo, Fecha_hora } = req.body;
+    const { Id, Empleado, Tipo, Fecha_hora } = req.body;
     try {
         const response = await notion.pages.create({
             parent: {
@@ -275,10 +275,11 @@ app.post('/PostSigning', jsonParser, async (req, res) => {
                 Id: {
                     title: [{
                         text: {
-                            content: ""
+                            content: Id
                         }
-                    }]
-                }
+                    }
+                    ]
+                },
             },
         });
         res.send(response);
