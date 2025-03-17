@@ -5,27 +5,27 @@ const bodyParser = require('body-parser');
 const jsonParser = bodyParser.json();
 const port = process.env.PORT || 8000;
 require('dotenv').config();
+const Crypto = require('crypto-js');
+const nodemailer = require('nodemailer');
 
-const bcrypt = require('bcrypt');
 
 const app = express();
 app.use(cors());
 app.use(bodyParser.json());
 
-// Añadir como variables de entorno
-const authToken = "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";
-const usuariosDb = "1a7879e4f8e480aea957eb64fa533cf3";
-const fichajeDb = "1a7879e4f8e4800689f7fff9be6f5c1f";
-const notion = new Client({ auth: authToken });
-
-const saltRounds = 10;
+const authToken = process.env.TOKEN_NOTION
+const usuariosDb = process.env.USERSDB_KEY
+const fichajeDb = process.env.SIGNINGS_KEY
+const notion = new Client({ auth: authToken })
+const key = process.env.ENCRYPTION_KEY;
 
 app.post('/PostUser', jsonParser, async (req, res) => {
-    const { Nombre, Pwd, Email, Rol, Fecha_alta } = req.body;
+    const { Nombre, Pwd, Email, Rol, Fecha_alta, Horas } = req.body;
+    console.log(key)
     try {
-        const hash = await bcrypt.hash(Pwd, saltRounds)
+        const hash = Crypto.AES.encrypt(Pwd, key).toString();
         const response = await notion.pages.create({
-            parent: {
+            parent: {   
                 database_id: usuariosDb,
             },
             properties: {
@@ -58,6 +58,7 @@ app.post('/PostUser', jsonParser, async (req, res) => {
                         start: Fecha_alta
                     },
                 },
+                Horas: { number: Horas }
             },
         });
 
@@ -111,8 +112,10 @@ app.post('/login', async (req, res) => {
 
         const usuario = response.results[0];
         const storedPassword = usuario.properties.Pwd.rich_text[0]?.text.content;
+        const bytes = Crypto.AES.decrypt(storedPassword, key);
+        var originalPwd = bytes.toString(Crypto.enc.Utf8);
 
-        if (!await bcrypt.compare(password, storedPassword)) {
+        if (password !== originalPwd) {
             return res.status(401).json({ message: "Contraseña incorrecta" });
         }
 
@@ -287,6 +290,72 @@ app.post('/PostSigning', jsonParser, async (req, res) => {
         console.log(error);
     }
 });
+
+const transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS
+    }
+});
+
+export const sendEmail = async (options) => {
+    const mailOptions = {
+        from: process.env.EMAIL_USER, 
+        to: options.to,               
+        subject: options.subject,    
+        text: options.text,            
+        html: options.html || options.text  
+    };
+
+    try {
+        const info = await transporter.sendMail(mailOptions);
+        console.log('Correo enviado: ' + info.response);
+        return { success: true, info };
+    } catch (error) {
+        console.error('Error al enviar correo:', error);
+        return { success: false};
+    }
+};
+
+
+app.post('/forgot-password', async (req, res) => {
+    const { email } = req.body;
+
+    const user = await findUserByEmail(email);
+
+    if (!user) {
+        return res.status(404).json({ message: 'Usuario no encontrado' });
+    }
+
+    const recoveryToken = generateRecoveryToken();
+
+    const subject = 'Recuperación de contraseña';
+    const text = `Tu código de recuperación es: ${recoveryToken}`;
+    const html = `<p>Tu código de recuperación es: <strong>${recoveryToken}</strong></p>`;
+
+    const emailResult = await sendEmail({
+        to: email,
+        subject: subject,
+        text: text,
+        html: html
+    });
+
+    if (emailResult.success) {
+        return res.status(200).json({ message: 'Correo enviado con éxito' });
+    } else {
+        return res.status(500).json({ message: 'Error al enviar el correo', error: emailResult.error });
+    }
+});
+
+
+function generateRecoveryToken() {
+    return Math.random().toString(36).substr(2, 8);
+}
+
+async function findUserByEmail(email) {
+    return { email };
+}
 
 app.listen(port, () => {
     console.log('server listening on port 8000!');
