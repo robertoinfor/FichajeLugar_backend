@@ -8,7 +8,6 @@ require('dotenv').config();
 const Crypto = require('crypto-js');
 const nodemailer = require('nodemailer');
 
-
 const app = express();
 app.use(cors());
 app.use(bodyParser.json());
@@ -16,12 +15,12 @@ app.use(bodyParser.json());
 const authToken = process.env.TOKEN_NOTION
 const usuariosDb = process.env.USERSDB_KEY
 const fichajeDb = process.env.SIGNINGS_KEY
+const tokenDB = process.env.TOKENS_KEY
 const notion = new Client({ auth: authToken })
 const key = process.env.ENCRYPTION_KEY;
 
 app.post('/PostUser', jsonParser, async (req, res) => {
     const { Nombre, Pwd, Email, Rol, Fecha_alta, Horas } = req.body;
-    console.log(key)
     try {
         const hash = Crypto.AES.encrypt(Pwd, key).toString();
         const response = await notion.pages.create({
@@ -209,6 +208,37 @@ app.get('/GetUserByName/:name', async (req, res) => {
     }
 });
 
+app.post('/GetDecryptedPassword', jsonParser, async (req, res) => {
+    const { token } = req.body;
+    try {
+        const response = await notion.databases.query({
+            database_id: tokenDB,
+            filter: {
+                property: "Id",
+                title: { equals: token }
+            }
+        });
+
+        if (response.results.length === 0) {
+            return res.status(404).json({ message: "Token no encontrado" });
+        }
+
+        const userId = response.results[0].properties.Empleado.relation[0].id;
+
+        const userResponse = await notion.pages.retrieve({ page_id: userId });
+        const storedPassword = userResponse.properties.Pwd.rich_text[0]?.text.content;
+
+        const bytes = Crypto.AES.decrypt(storedPassword, key);
+        const decryptedPassword = bytes.toString(Crypto.enc.Utf8);
+
+        res.status(200).json({ password: decryptedPassword });
+    } catch (error) {
+        console.error("Error al obtener la contraseña:", error);
+        res.status(500).json({ message: "Error en el servidor", error });
+    }
+});
+
+
 app.get('/GetSignings', async (req, res) => {
     try {
         const response = await notion.databases.query({
@@ -291,71 +321,94 @@ app.post('/PostSigning', jsonParser, async (req, res) => {
     }
 });
 
-const transporter = nodemailer.createTransport({
-    service: 'gmail',
-    auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS
+
+
+app.get('/GetTokens', async (req, res) => {
+    try {
+        const response = await notion.databases.query({
+            database_id: tokenDB,
+            sorts: [
+                {
+                    timestamp: 'created_time',
+                    direction: 'descending',
+                },
+            ]
+        });
+
+        res.send(response);
+        const { results } = response;
+    } catch (error) {
+        console.log(error);
     }
 });
 
-export const sendEmail = async (options) => {
-    const mailOptions = {
-        from: process.env.EMAIL_USER, 
-        to: options.to,               
-        subject: options.subject,    
-        text: options.text,            
-        html: options.html || options.text  
-    };
-
+app.post('/PostToken', jsonParser, async (req, res) => {
+    const { Id, Generado, Empleado, Caduca, Estado } = req.body;
     try {
-        const info = await transporter.sendMail(mailOptions);
-        console.log('Correo enviado: ' + info.response);
-        return { success: true, info };
+        const response = await notion.pages.create({
+            parent: {
+                database_id: tokenDB,
+            },
+            properties: {
+                Generado: {
+                    date: {
+                        start: Generado
+                    },
+                },
+                Empleado: {
+                    relation: [{
+                        id: Empleado
+                    },],
+                },
+                Caduca: {
+                    date: {
+                        start: Caduca
+                    }
+                },
+                Estado: {
+                    status: {
+                        name: Estado
+                    }
+                },
+                Id: {
+                    title: [{
+                        text: {
+                            content: Id
+                        }
+                    }
+                    ]
+                },
+            },
+        });
+        const userResponse = await notion.pages.retrieve({ page_id: Empleado });
+        const userEmail = userResponse.properties.Email.email;
+        await sendTokenEmail(userEmail, Id);
+        res.send(response);
     } catch (error) {
-        console.error('Error al enviar correo:', error);
-        return { success: false};
+        console.log(error);
     }
-};
+});
 
-
-app.post('/forgot-password', async (req, res) => {
-    const { email } = req.body;
-
-    const user = await findUserByEmail(email);
-
-    if (!user) {
-        return res.status(404).json({ message: 'Usuario no encontrado' });
-    }
-
-    const recoveryToken = generateRecoveryToken();
-
-    const subject = 'Recuperación de contraseña';
-    const text = `Tu código de recuperación es: ${recoveryToken}`;
-    const html = `<p>Tu código de recuperación es: <strong>${recoveryToken}</strong></p>`;
-
-    const emailResult = await sendEmail({
-        to: email,
-        subject: subject,
-        text: text,
-        html: html
+async function sendTokenEmail(userEmail, token) {
+    const transporter = nodemailer.createTransport({
+        service: 'gmail',
+        auth: {
+            user: 'robertoinfor03@gmail.com',
+            pass: 'cqdi fptn qnxx jarf'
+        }
     });
 
-    if (emailResult.success) {
-        return res.status(200).json({ message: 'Correo enviado con éxito' });
-    } else {
-        return res.status(500).json({ message: 'Error al enviar el correo', error: emailResult.error });
-    }
-});
+    const mailOptions = {
+        from: '"Soporte" <tuemail@gmail.com>',
+        to: userEmail,
+        subject: "Recuperación de Contraseña",
+        text: `Tu código de verificación es: ${token}. Expira en 15 minutos.`,
+        html: `<p>Tu código de verificación es: <strong>${token}</strong>. Expira en <strong>15 minutos</strong>.</p>`
+    };
 
-
-function generateRecoveryToken() {
-    return Math.random().toString(36).substr(2, 8);
+    await transporter.sendMail(mailOptions);
 }
 
-async function findUserByEmail(email) {
-    return { email };
-}
 
 app.listen(port, () => {
     console.log('server listening on port 8000!');
