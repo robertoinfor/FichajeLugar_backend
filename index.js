@@ -7,6 +7,9 @@ const port = process.env.PORT || 8000;
 require('dotenv').config();
 const Crypto = require('crypto-js');
 const nodemailer = require('nodemailer');
+const admin = require('firebase-admin');
+const cron = require('node-cron');
+
 
 const app = express();
 app.use(cors());
@@ -18,13 +21,14 @@ const fichajeDb = process.env.SIGNINGS_KEY
 const tokenDB = process.env.TOKENS_KEY
 const notion = new Client({ auth: authToken })
 const key = process.env.ENCRYPTION_KEY;
+const fcm = process.env.FCM_KEY;
 
 app.post('/PostUser', jsonParser, async (req, res) => {
     const { Nombre, Pwd, Email, Rol, Fecha_alta, Horas } = req.body;
     try {
         const hash = Crypto.AES.encrypt(Pwd, key).toString();
         const response = await notion.pages.create({
-            parent: {   
+            parent: {
                 database_id: usuariosDb,
             },
             properties: {
@@ -408,6 +412,130 @@ async function sendTokenEmail(userEmail, token) {
 
     await transporter.sendMail(mailOptions);
 }
+
+app.post('/sendNotification', async (req, res) => {
+    const { token, title, body } = req.body;
+
+    const message = {
+        notification: {
+            title: title,
+            body: body,
+        },
+        token: token,
+    };
+
+    try {
+        const response = await admin.messaging().send(message);
+        console.log('Notificación enviada:', response);
+        res.status(200).send({ message: 'Notificación enviada correctamente', response });
+    } catch (error) {
+        console.error('Error al enviar la notificación:', error);
+        res.status(500).send({ message: 'Error al enviar la notificación', error });
+    }
+});
+
+app.get('/checkToken', async (req, res) => {
+    const { userId } = req.query;
+
+    try {
+        const response = await notion.databases.query({
+            database_id: fcm,
+            filter: {
+                property: "Empleado",
+                relation: {
+                    contains: userId,
+                }
+            }
+        });
+
+        if (response.results.length > 0) {
+            const existingToken = response.results[0].properties.FCM_Token.rich_text[0]?.text.content;
+            return res.json({ token: existingToken });
+        }
+
+        res.json({ token: null });
+    } catch (error) {
+        console.error("Error al verificar el token FCM:", error);
+        res.status(500).json({ error: "Error al verificar el token FCM" });
+    }
+});
+
+app.post('/saveUserToken', jsonParser, async (req, res) => {
+    const { userId, fcmToken } = req.body;
+
+    try {
+        const response = await notion.databases.query({
+            database_id: tokenDB,
+            filter: {
+                property: "User",
+                relation: {
+                    contains: userId,
+                }
+            }
+        });
+
+        if (response.results.length === 0) {
+            const newResponse = await notion.pages.create({
+                parent: { database_id: tokenDB },
+                properties: {
+                    User: {
+                        relation: [{ id: userId }],
+                    },
+                    FCM_Token: {
+                        rich_text: [{
+                            text: { content: fcmToken }
+                        }],
+                    },
+                },
+            });
+
+            return res.status(200).send({ message: "Token guardado exitosamente" });
+        } else {
+            res.status(200).send({ message: "Token ya existe" });
+        }
+    } catch (error) {
+        console.error("Error al guardar el token FCM:", error);
+        res.status(500).json({ error: "Error al guardar el token FCM" });
+    }
+});
+
+
+cron.schedule('0 9 * * 1-5', async () => {
+    console.log('Verificando fichajes a las 9:00 AM...');
+
+    try {
+        // Aquí consultamos a la base de datos de fichajes para ver si hay usuarios sin fichar
+        const response = await notion.databases.query({
+            database_id: fichajeDb,
+            filter: {
+                property: "Fecha_hora",
+                date: {
+                    after: new Date(), // Filtro para obtener fichajes de hoy
+                }
+            }
+        });
+
+        // Itera sobre los usuarios para ver si han fichado, y si no, enviar notificación
+        const users = response.results;  // Suponiendo que los fichajes son correctos
+        const userTokens = [];
+
+        users.forEach(user => {
+            const userToken = getUserToken(user);  // Obtiene el token FCM de la base de datos
+            if (!userToken) return;
+
+            // Si el usuario no ha fichado, lo agregamos para enviar la notificación
+            if (hasNotClockedIn(user)) {  // Implementa la lógica para comprobar si el usuario ha fichado
+                userTokens.push(userToken);
+            }
+        });
+
+        // Enviar notificación a los usuarios que no han fichado
+        sendReminderNotification(userTokens);
+
+    } catch (error) {
+        console.error('Error al verificar fichajes:', error);
+    }
+});
 
 
 app.listen(port, () => {
