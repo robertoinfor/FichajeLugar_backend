@@ -21,7 +21,7 @@ const fichajeDb = process.env.SIGNINGS_KEY
 const tokenDB = process.env.TOKENS_KEY
 const notion = new Client({ auth: authToken })
 const key = process.env.ENCRYPTION_KEY;
-const fcm = process.env.FCM_KEY;
+const fcmDB = process.env.FCM_KEY;
 
 app.post('/PostUser', jsonParser, async (req, res) => {
     const { Nombre, Pwd, Email, Rol, Fecha_alta, Horas } = req.body;
@@ -330,7 +330,7 @@ app.post('/PostSigning', jsonParser, async (req, res) => {
 app.get('/GetTokens', async (req, res) => {
     try {
         const response = await notion.databases.query({
-            database_id: tokenDB,
+            database_id: fcmDB,
             sorts: [
                 {
                     timestamp: 'created_time',
@@ -436,20 +436,20 @@ app.post('/sendNotification', async (req, res) => {
 
 app.get('/checkToken', async (req, res) => {
     const { userId } = req.query;
-
     try {
         const response = await notion.databases.query({
-            database_id: fcm,
+            database_id: fcmDB,
             filter: {
                 property: "Empleado",
-                relation: {
+                relation: [{
                     contains: userId,
                 }
+                ]
             }
         });
 
         if (response.results.length > 0) {
-            const existingToken = response.results[0].properties.FCM_Token.rich_text[0]?.text.content;
+            const existingToken = response.results[0].properties.Token.title[0].text.content;
             return res.json({ token: existingToken });
         }
 
@@ -461,13 +461,12 @@ app.get('/checkToken', async (req, res) => {
 });
 
 app.post('/saveUserToken', jsonParser, async (req, res) => {
-    const { userId, fcmToken } = req.body;
-
+    const { userId, token } = req.body;
     try {
         const response = await notion.databases.query({
-            database_id: tokenDB,
+            database_id: fcmDB,
             filter: {
-                property: "User",
+                property: "Empleado",
                 relation: {
                     contains: userId,
                 }
@@ -476,19 +475,18 @@ app.post('/saveUserToken', jsonParser, async (req, res) => {
 
         if (response.results.length === 0) {
             const newResponse = await notion.pages.create({
-                parent: { database_id: tokenDB },
+                parent: { database_id: fcmDB },
                 properties: {
-                    User: {
+                    Empleado: {
                         relation: [{ id: userId }],
                     },
-                    FCM_Token: {
-                        rich_text: [{
-                            text: { content: fcmToken }
+                    Token: {
+                        title: [{
+                            text: { content: token }
                         }],
                     },
                 },
             });
-
             return res.status(200).send({ message: "Token guardado exitosamente" });
         } else {
             res.status(200).send({ message: "Token ya existe" });
