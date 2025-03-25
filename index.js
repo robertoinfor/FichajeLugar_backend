@@ -10,7 +10,6 @@ const nodemailer = require('nodemailer');
 const admin = require('firebase-admin');
 const cron = require('node-cron');
 
-
 const app = express();
 app.use(cors());
 app.use(bodyParser.json());
@@ -22,6 +21,7 @@ const tokenDB = process.env.TOKENS_KEY
 const notion = new Client({ auth: authToken })
 const key = process.env.ENCRYPTION_KEY;
 const fcmDB = process.env.FCM_KEY;
+const placesDB = process.env.PLACES_KEY;
 
 app.post('/PostUser', jsonParser, async (req, res) => {
     const { Nombre, Pwd, Email, Rol, Fecha_alta, Horas } = req.body;
@@ -161,7 +161,6 @@ app.delete('/DeleteUser/:id', async (req, res) => {
 app.put("/UpdateUser/:id", async (req, res) => {
     const { id } = req.params;
     const { Nombre, Pwd, Email, Rol, Fecha_alta, Horas } = req.body;
-    const hash = await bcrypt.hash(Pwd, 10)
 
     try {
         const user = await notion.pages.retrieve({ page_id: id });
@@ -502,32 +501,28 @@ cron.schedule('0 9 * * 1-5', async () => {
     console.log('Verificando fichajes a las 9:00 AM...');
 
     try {
-        // Aquí consultamos a la base de datos de fichajes para ver si hay usuarios sin fichar
         const response = await notion.databases.query({
             database_id: fichajeDb,
             filter: {
                 property: "Fecha_hora",
                 date: {
-                    after: new Date(), // Filtro para obtener fichajes de hoy
+                    after: new Date(),
                 }
             }
         });
 
-        // Itera sobre los usuarios para ver si han fichado, y si no, enviar notificación
-        const users = response.results;  // Suponiendo que los fichajes son correctos
+        const users = response.results;
         const userTokens = [];
 
         users.forEach(user => {
-            const userToken = getUserToken(user);  // Obtiene el token FCM de la base de datos
+            const userToken = getUserToken(user);
             if (!userToken) return;
 
-            // Si el usuario no ha fichado, lo agregamos para enviar la notificación
-            if (hasNotClockedIn(user)) {  // Implementa la lógica para comprobar si el usuario ha fichado
+            if (hasNotClockedIn(user)) {
                 userTokens.push(userToken);
             }
         });
 
-        // Enviar notificación a los usuarios que no han fichado
         sendReminderNotification(userTokens);
 
     } catch (error) {
@@ -535,6 +530,93 @@ cron.schedule('0 9 * * 1-5', async () => {
     }
 });
 
+
+app.get('/GetLocations', async (req, res) => {
+    try {
+        const response = await notion.databases.query({
+            database_id: placesDB,
+            sorts: [
+                {
+                    timestamp: 'created_time',
+                    direction: 'descending',
+                },
+            ]
+        });
+
+        res.send(response);
+        const { results } = response;
+    } catch (error) {
+        console.log(error);
+    }
+});
+
+app.post('/PostLocation', jsonParser, async (req, res) => {
+    const { Nombre, Longitud, Latitud } = req.body;
+    try {
+        const response = await notion.pages.create({
+            parent: {
+                database_id: placesDB,
+            },
+            properties: {
+                Longitud: {
+                    number: Longitud
+                },
+                Latitud: {
+                    number: Latitud
+                },
+                Nombre: {
+                    title: [{
+                        text: {
+                            content: Nombre
+                        }
+                    }
+                    ]
+                },
+            },
+        });
+        res.send(response);
+    } catch (error) {
+        console.log(error);
+    }
+});
+
+app.delete('/DeleteLocation/:id', async (req, res) => {
+    const { id } = req.params;
+    try {
+        const response = await notion.pages.update({
+            page_id: id,
+            archived: true,
+        });
+        if (response) {
+            return res.status(200).send({ message: 'Localización archivada correctamente' });
+        } else {
+            return res.status(400).send({ message: 'Error al archivar la localización' });
+        }
+    } catch (error) {
+        console.error('Error al hacer la solicitud a Notion:', error);
+        return res.status(500).send({ message: 'Error al eliminar la localización', error });
+    }
+});
+
+app.put("/UpdateLocation/:id", async (req, res) => {
+    const { id } = req.params;
+    const { Nombre } = req.body;
+    console.log("id: ", id, " name: ", Nombre);
+    
+    try {
+        const response = await notion.pages.update(
+            {
+                page_id: id,
+                properties: {
+                    Nombre: { title: [{ text: { content: Nombre } }] }
+                },
+            },
+        );
+    } catch (error) {
+        console.error("Error actualizando localización:", error);
+        res.status(500).json({ error: error.message });
+    }
+});
 
 app.listen(port, () => {
     console.log('server listening on port 8000!');
