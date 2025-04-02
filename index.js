@@ -4,11 +4,15 @@ const cors = require('cors');
 const bodyParser = require('body-parser');
 const jsonParser = bodyParser.json();
 const port = process.env.PORT || 8000;
-require('dotenv').config();
 const Crypto = require('crypto-js');
 const nodemailer = require('nodemailer');
 const admin = require('firebase-admin');
 const cron = require('node-cron');
+const multer = require('multer');
+const { google } = require('googleapis');
+const fs = require('fs');
+const stream = require ('stream');
+require('dotenv').config();
 
 const app = express();
 app.use(cors());
@@ -22,9 +26,64 @@ const notion = new Client({ auth: authToken })
 const key = process.env.ENCRYPTION_KEY;
 const fcmDB = process.env.FCM_KEY;
 const placesDB = process.env.PLACES_KEY;
+const storage = multer.memoryStorage();
+const upload = multer({ storage });
+const api_drive = require('./API_DRIVE.json')
 
+const SCOPE = ['https://www.googleapis.com/auth/drive'];
+
+async function authorize(){
+    const jwtClient = new google.auth.JWT(
+        api_drive.client_email,
+        null,
+        api_drive.private_key,
+        SCOPE
+    );
+    await jwtClient.authorize();
+    return jwtClient;
+}
+
+async function uploadFile(authClient, image){
+    return new Promise((resolve, rejected) => {
+        const bufferStream = new stream.PassThrough();
+        const drive = google.drive({ version: 'v3', auth: authClient });
+        bufferStream.end(image.buffer);
+        var fileMetaData = {
+            name: image.originalname,    
+            parents: ['1s43bmlgQvDSGl4G0_Q5XLuWwpk3xM01E']
+        }
+        drive.files.create({
+            resource: fileMetaData,
+            media: {
+                body: bufferStream,
+                mimeType: image.mimetype
+            },
+            fields: 'id'
+        }, function(error, file){
+            if(error){
+                return rejected(error);
+            }
+            resolve(file);
+        });
+    });
+}
+
+
+app.post('/upload', upload.single('file'), async (req, res) => {
+    try {
+      const authClient = await authorize();
+      const file = await uploadFile(authClient, req.file);
+      const fileUrl = `https://drive.google.com/thumbnail?id=${file.data.id}`;
+      res.status(200).json({ fileUrl });
+    } catch (error) {
+      console.error("Error en la subida:", error);
+      res.status(500).json({ error: error.toString() });
+    }
+  });
+  
+  
 app.post('/PostUser', jsonParser, async (req, res) => {
-    const { Nombre, Pwd, Email, Rol, Fecha_alta, Horas } = req.body;
+    const { Nombre, Pwd, Email, Rol, Fecha_alta, Horas, Foto } = req.body;
     try {
         const hash = Crypto.AES.encrypt(Pwd, key).toString();
         const response = await notion.pages.create({
@@ -61,7 +120,8 @@ app.post('/PostUser', jsonParser, async (req, res) => {
                         start: Fecha_alta
                     },
                 },
-                Horas: { number: Horas }
+                Horas: { number: Horas },
+                Foto: Foto
             },
         });
 
@@ -164,10 +224,7 @@ app.put("/UpdateUser/:id", async (req, res) => {
 
     try {
         const user = await notion.pages.retrieve({ page_id: id });
-
-        const currentPwd = user.properties.Pwd.rich_text[0]?.text.content || "";
-
-        const hash = Pwd === currentPwd ? currentPwd : await bcrypt.hash(Pwd, 10);
+        const hash = Crypto.AES.encrypt(Pwd, key).toString();
         const response = await notion.pages.update(
             {
                 page_id: id,
@@ -181,9 +238,10 @@ app.put("/UpdateUser/:id", async (req, res) => {
                 },
             },
         );
+        return res.status(200).json({ message: 'Fichaje actualizado', data: response });
     } catch (error) {
         console.error("Error actualizando usuario:", error);
-        res.status(500).json({ error: error.message });
+        return res.status(500).json({ error: error.message });
     }
 });
 
@@ -285,6 +343,20 @@ app.get('/GetSigningUser/:id', async (req, res) => {
     }
 });
 
+app.get('/GetSigningbyId/:id', async (req, res) => {
+    const { id } = req.params;
+    try {
+        const response = await notion.pages.retrieve({
+            page_id: id,
+        });
+
+        res.send(response);
+        const { results } = response;
+    } catch (error) {
+        console.log(error);
+    }
+});
+
 app.post('/PostSigning', jsonParser, async (req, res) => {
     const { Id, Empleado, Tipo, Fecha_hora } = req.body;
     try {
@@ -324,7 +396,27 @@ app.post('/PostSigning', jsonParser, async (req, res) => {
     }
 });
 
+app.put("/UpdateSigning/:id", async (req, res) => {
+    const { id } = req.params;
+    const { Empleado, Tipo, Fecha_hora, fecha, hora } = req.body;
 
+    try {
+        const response = await notion.pages.update(
+            {
+                page_id: id,
+                properties: {
+                    Empleado: { relation: [{ id: Empleado }] },
+                    Tipo: { select: { name: Tipo } },
+                    Fecha_hora: { date: { start: Fecha_hora }, },
+                },
+            },
+        );
+        return res.status(200).json({ message: 'Fichaje actualizado', data: response });
+    } catch (error) {
+        console.error("Error actualizando usuario:", error);
+        res.status(500).json({ error: error.message });
+    }
+});
 
 app.get('/GetTokens', async (req, res) => {
     try {
@@ -346,7 +438,9 @@ app.get('/GetTokens', async (req, res) => {
 });
 
 app.post('/PostToken', jsonParser, async (req, res) => {
-    const { Id, Generado, Empleado, Caduca, Estado } = req.body;
+    const { Id, Empleado, Estado } = req.body;
+    const now = new Date();
+    now.setMinutes(now.getMinutes() + 15)
     try {
         const response = await notion.pages.create({
             parent: {
@@ -355,7 +449,7 @@ app.post('/PostToken', jsonParser, async (req, res) => {
             properties: {
                 Generado: {
                     date: {
-                        start: Generado
+                        start: new Date().toISOString()
                     },
                 },
                 Empleado: {
@@ -365,7 +459,7 @@ app.post('/PostToken', jsonParser, async (req, res) => {
                 },
                 Caduca: {
                     date: {
-                        start: Caduca
+                        start: now.toISOString()
                     }
                 },
                 Estado: {
@@ -601,8 +695,7 @@ app.delete('/DeleteLocation/:id', async (req, res) => {
 app.put("/UpdateLocation/:id", async (req, res) => {
     const { id } = req.params;
     const { Nombre } = req.body;
-    console.log("id: ", id, " name: ", Nombre);
-    
+
     try {
         const response = await notion.pages.update(
             {
