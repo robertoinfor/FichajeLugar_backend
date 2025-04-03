@@ -11,7 +11,7 @@ const cron = require('node-cron');
 const multer = require('multer');
 const { google } = require('googleapis');
 const fs = require('fs');
-const stream = require ('stream');
+const stream = require('stream');
 require('dotenv').config();
 
 const app = express();
@@ -26,13 +26,15 @@ const notion = new Client({ auth: authToken })
 const key = process.env.ENCRYPTION_KEY;
 const fcmDB = process.env.FCM_KEY;
 const placesDB = process.env.PLACES_KEY;
+const historicDB = process.env.HISTORIC_KEY;
+
 const storage = multer.memoryStorage();
 const upload = multer({ storage });
 const api_drive = require('./API_DRIVE.json')
 
 const SCOPE = ['https://www.googleapis.com/auth/drive'];
 
-async function authorize(){
+async function authorize() {
     const jwtClient = new google.auth.JWT(
         api_drive.client_email,
         null,
@@ -43,13 +45,13 @@ async function authorize(){
     return jwtClient;
 }
 
-async function uploadFile(authClient, image){
+async function uploadFile(authClient, image) {
     return new Promise((resolve, rejected) => {
         const bufferStream = new stream.PassThrough();
         const drive = google.drive({ version: 'v3', auth: authClient });
         bufferStream.end(image.buffer);
         var fileMetaData = {
-            name: image.originalname,    
+            name: image.originalname,
             parents: ['1s43bmlgQvDSGl4G0_Q5XLuWwpk3xM01E']
         }
         drive.files.create({
@@ -59,8 +61,8 @@ async function uploadFile(authClient, image){
                 mimeType: image.mimetype
             },
             fields: 'id'
-        }, function(error, file){
-            if(error){
+        }, function (error, file) {
+            if (error) {
                 return rejected(error);
             }
             resolve(file);
@@ -68,20 +70,18 @@ async function uploadFile(authClient, image){
     });
 }
 
-
 app.post('/upload', upload.single('file'), async (req, res) => {
     try {
-      const authClient = await authorize();
-      const file = await uploadFile(authClient, req.file);
-      const fileUrl = `https://drive.google.com/thumbnail?id=${file.data.id}`;
-      res.status(200).json({ fileUrl });
+        const authClient = await authorize();
+        const file = await uploadFile(authClient, req.file);
+        const fileUrl = `https://drive.google.com/thumbnail?id=${file.data.id}`;
+        res.status(200).json({ fileUrl });
     } catch (error) {
-      console.error("Error en la subida:", error);
-      res.status(500).json({ error: error.toString() });
+        console.error("Error en la subida:", error);
+        res.status(500).json({ error: error.toString() });
     }
-  });
-  
-  
+});
+
 app.post('/PostUser', jsonParser, async (req, res) => {
     const { Nombre, Pwd, Email, Rol, Fecha_alta, Horas, Foto } = req.body;
     try {
@@ -124,29 +124,35 @@ app.post('/PostUser', jsonParser, async (req, res) => {
                 Foto: Foto
             },
         });
-
         res.send(response);
     } catch (error) {
         console.log(error);
     }
 });
 
+async function getFromDatabase(databaseId, filter = null, sorts = null) {
+    const query = {
+        database_id: databaseId,
+    };
+
+    if (filter) query.filter = filter;
+    if (sorts) query.sorts = sorts;
+
+    const response = await notion.databases.query(query);
+    return response.results;
+}
+
 app.get('/GetUsers', async (req, res) => {
     try {
-        const response = await notion.databases.query({
-            database_id: usuariosDb,
-            sorts: [
-                {
-                    timestamp: 'created_time',
-                    direction: 'descending',
-                },
-            ]
-        });
-
-        res.send(response);
-        const { results } = response;
+        const results = await getFromDatabase(
+            usuariosDb,
+            null,
+            [{ timestamp: 'created_time', direction: 'descending' }]
+        );
+        res.send({ results });
     } catch (error) {
         console.log(error);
+        res.status(500).json({ error: error.message });
     }
 });
 
@@ -220,7 +226,7 @@ app.delete('/DeleteUser/:id', async (req, res) => {
 
 app.put("/UpdateUser/:id", async (req, res) => {
     const { id } = req.params;
-    const { Nombre, Pwd, Email, Rol, Fecha_alta, Horas } = req.body;
+    const { Nombre, Pwd, Email, Rol, Fecha_alta, Horas, Foto } = req.body;
 
     try {
         const user = await notion.pages.retrieve({ page_id: id });
@@ -234,7 +240,8 @@ app.put("/UpdateUser/:id", async (req, res) => {
                     Pwd: { rich_text: [{ text: { content: hash }, },], },
                     Rol: { select: { name: Rol } },
                     Fecha_alta: { date: { start: Fecha_alta } },
-                    Horas: { number: Horas }
+                    Horas: { number: Horas },
+                    Foto: Foto
                 },
             },
         );
@@ -246,26 +253,16 @@ app.put("/UpdateUser/:id", async (req, res) => {
 });
 
 app.get('/GetUserByName/:name', async (req, res) => {
-    const { name } = req.params;
     try {
-        const response = await notion.databases.query({
-            database_id: usuariosDb,
-            sorts: [
-                {
-                    timestamp: 'created_time',
-                    direction: 'descending',
-                },
-            ],
-            filter: {
-                property: "Nombre",
-                title: { equals: name }
-            }
-        });
-
-        res.send(response);
-        const { results } = response;
+        const results = await getFromDatabase(
+            usuariosDb,
+            { property: "Nombre", title: { equals: req.params.name } },
+            [{ timestamp: 'created_time', direction: 'descending' }]
+        );
+        res.send({ results });
     } catch (error) {
         console.log(error);
+        res.status(500).json({ error: error.message });
     }
 });
 
@@ -285,12 +282,7 @@ app.post('/GetDecryptedPassword', jsonParser, async (req, res) => {
         }
 
         const userId = response.results[0].properties.Empleado.relation[0].id;
-
-        const userResponse = await notion.pages.retrieve({ page_id: userId });
-        const storedPassword = userResponse.properties.Pwd.rich_text[0]?.text.content;
-
-        const bytes = Crypto.AES.decrypt(storedPassword, key);
-        const decryptedPassword = bytes.toString(Crypto.enc.Utf8);
+        const decryptedPassword = await getDecryptedPasswordByUserId(userId);
 
         res.status(200).json({ password: decryptedPassword });
     } catch (error) {
@@ -300,46 +292,55 @@ app.post('/GetDecryptedPassword', jsonParser, async (req, res) => {
 });
 
 
+async function getDecryptedPasswordByUserId(userId) {
+    const userResponse = await notion.pages.retrieve({ page_id: userId });
+    const storedPassword = userResponse.properties.Pwd.rich_text[0]?.text.content;
+
+    const bytes = Crypto.AES.decrypt(storedPassword, key);
+    const decryptedPassword = bytes.toString(Crypto.enc.Utf8);
+    return decryptedPassword;
+}
+
+
+app.post('/GetDecryptedPasswordByUserId', jsonParser, async (req, res) => {
+    const { userId } = req.body;
+    try {
+        const decryptedPassword = await getDecryptedPasswordByUserId(userId);
+        res.status(200).json({ password: decryptedPassword });
+    } catch (error) {
+        console.error("Error al desencriptar contraseña por userId:", error);
+        res.status(500).json({ message: "Error en el servidor", error });
+    }
+});
+
+
+
 app.get('/GetSignings', async (req, res) => {
     try {
-        const response = await notion.databases.query({
-            database_id: fichajeDb,
-            sorts: [
-                {
-                    timestamp: 'created_time',
-                    direction: 'descending',
-                },
-            ]
-        });
-
-        res.send(response);
-        const { results } = response;
+        const results = await getFromDatabase(
+            fichajeDb,
+            null,
+            [{ timestamp: 'created_time', direction: 'descending' }]
+        );
+        res.send({ results });
     } catch (error) {
         console.log(error);
+        res.status(500).json({ error: error.message });
     }
 });
 
 app.get('/GetSigningUser/:id', async (req, res) => {
     const { id } = req.params;
     try {
-        const response = await notion.databases.query({
-            database_id: fichajeDb,
-            sorts: [
-                {
-                    timestamp: 'created_time',
-                    direction: 'descending',
-                },
-            ],
-            filter: {
-                property: "Empleado",
-                relation: { contains: id }
-            }
-        });
-
-        res.send(response);
-        const { results } = response;
+        const results = await getFromDatabase(
+            fichajeDb,
+            { property: "Empleado", relation: { contains: id } },
+            [{ timestamp: 'created_time', direction: 'descending' }]
+        );
+        res.send({ results });
     } catch (error) {
         console.log(error);
+        res.status(500).json({ error: error.message });
     }
 });
 
@@ -358,7 +359,8 @@ app.get('/GetSigningbyId/:id', async (req, res) => {
 });
 
 app.post('/PostSigning', jsonParser, async (req, res) => {
-    const { Id, Empleado, Tipo, Fecha_hora } = req.body;
+    let id = `${new Date().toLocaleString('es-ES', { month: 'long' }).charAt(0).toUpperCase() + new Date().toLocaleString('es-ES', { month: 'long' }).slice(1)} ${new Date().getFullYear()}`;
+    const { Empleado, Tipo, Fecha_hora, Localizacion } = req.body;
     try {
         const response = await notion.pages.create({
             parent: {
@@ -380,14 +382,15 @@ app.post('/PostSigning', jsonParser, async (req, res) => {
                         name: Tipo,
                     }
                 },
+                Localizacion: { relation: [{ id: Localizacion }] },
                 Id: {
                     title: [{
                         text: {
-                            content: Id
+                            content: id
                         }
                     }
                     ]
-                },
+                }
             },
         });
         res.send(response);
@@ -420,20 +423,15 @@ app.put("/UpdateSigning/:id", async (req, res) => {
 
 app.get('/GetTokens', async (req, res) => {
     try {
-        const response = await notion.databases.query({
-            database_id: fcmDB,
-            sorts: [
-                {
-                    timestamp: 'created_time',
-                    direction: 'descending',
-                },
-            ]
-        });
-
-        res.send(response);
-        const { results } = response;
+        const results = await getFromDatabase(
+            fcmDB,
+            null,
+            [{ timestamp: 'created_time', direction: 'descending' }]
+        );
+        res.send({ results });
     } catch (error) {
         console.log(error);
+        res.status(500).json({ error: error.message });
     }
 });
 
@@ -505,6 +503,40 @@ async function sendTokenEmail(userEmail, token) {
 
     await transporter.sendMail(mailOptions);
 }
+
+async function getTokenFromDB(token) {
+    const response = await notion.databases.query({
+        database_id: tokenDB,
+        filter: {
+            property: "Id",
+            title: { equals: token }
+        }
+    });
+    return response.results[0];
+}
+
+app.post('/VerifyToken', async (req, res) => {
+    const { token } = req.body;
+    try {
+        const tokenRecord = await getTokenFromDB(token);
+        if (!tokenRecord) {
+            return res.status(404).json({ message: "Token no encontrado" });
+        }
+
+        const generado = new Date(tokenRecord.properties.Generado.date.start);
+        const ahora = new Date();
+        const diffInMinutes = (ahora - generado) / (1000 * 60);
+
+        if (diffInMinutes > 15) {
+            return res.status(401).json({ message: "El token ha expirado" });
+        }
+
+        return res.status(200).json({ message: "Token válido", tokenRecord });
+    } catch (error) {
+        console.error("Error verificando token:", error);
+        return res.status(500).json({ message: "Error en el servidor", error: error.message });
+    }
+});
 
 app.post('/sendNotification', async (req, res) => {
     const { token, title, body } = req.body;
@@ -627,20 +659,15 @@ cron.schedule('0 9 * * 1-5', async () => {
 
 app.get('/GetLocations', async (req, res) => {
     try {
-        const response = await notion.databases.query({
-            database_id: placesDB,
-            sorts: [
-                {
-                    timestamp: 'created_time',
-                    direction: 'descending',
-                },
-            ]
-        });
-
-        res.send(response);
-        const { results } = response;
+        const results = await getFromDatabase(
+            placesDB,
+            null,
+            [{ timestamp: 'created_time', direction: 'descending' }]
+        );
+        res.send({ results });
     } catch (error) {
         console.log(error);
+        res.status(500).json({ error: error.message });
     }
 });
 
@@ -708,6 +735,93 @@ app.put("/UpdateLocation/:id", async (req, res) => {
     } catch (error) {
         console.error("Error actualizando localización:", error);
         res.status(500).json({ error: error.message });
+    }
+});
+
+
+async function getAllSigningsFromDB(databaseId) {
+    let allResults = [];
+    let cursor = undefined;
+    do {
+        const response = await notion.databases.query({
+            database_id: databaseId,
+            start_cursor: cursor,
+        });
+        allResults.push(...response.results);
+        cursor = response.has_more ? response.next_cursor : null;
+    } while (cursor);
+    return allResults;
+}
+
+app.get('/GetAllSignings', async (req, res) => {
+    try {
+        const activeSignings = await getAllSigningsFromDB(fichajeDb);
+        const archivedSignings = await getAllSigningsFromDB(historicDB);
+        const allSignings = [...activeSignings, ...archivedSignings];
+        res.status(200).json({ results: allSignings });
+    } catch (error) {
+        console.error("Error al obtener fichajes:", error);
+        res.status(500).json({ message: "Error en el servidor", error: error.message });
+    }
+});
+
+cron.schedule('0 0 1 * *', async () => {
+    console.log('Iniciando proceso de archivado mensual de fichajes...');
+    try {
+        const now = new Date();
+        const firstDayCurrentMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+        const firstDayPrevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+
+
+        const response = await notion.databases.query({
+            database_id: fichajeDb,
+            filter: {
+                and: [
+                    {
+                        property: "Fecha_hora",
+                        date: {
+                            after: firstDayPrevMonth
+                        }
+                    },
+                    {
+                        property: "Fecha_hora",
+                        date: {
+                            before: firstDayCurrentMonth
+                        }
+                    }
+                ]
+            }
+
+        });
+
+        const fichajesMensuales = response.results;
+        console.log(`Se encontraron ${fichajesMensuales.length} fichajes del mes anterior.`);
+
+        for (const fichaje of fichajesMensuales) {
+            const fechaOriginal = fichaje.properties.Fecha_hora.date.start;
+            const newProperties = {
+                Fecha_hora: { date: { start: fechaOriginal } },
+                Empleado: fichaje.properties.Empleado,
+                Tipo: fichaje.properties.Tipo,
+                Id: fichaje.properties.Id
+            };
+
+            await notion.pages.create({
+                parent: { database_id: historicDB },
+                properties: newProperties
+            });
+
+            await notion.pages.update({
+                page_id: fichaje.id,
+                archived: true
+            });
+
+            console.log(`Fichaje ${fichaje.id} archivado.`);
+        }
+
+        console.log('Proceso de archivado mensual completado.');
+    } catch (error) {
+        console.error('Error archivando fichajes mensuales:', error);
     }
 });
 
