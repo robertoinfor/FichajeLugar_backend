@@ -10,7 +10,6 @@ const admin = require('firebase-admin');
 const cron = require('node-cron');
 const multer = require('multer');
 const { google } = require('googleapis');
-const fs = require('fs');
 const stream = require('stream');
 require('dotenv').config();
 
@@ -33,6 +32,16 @@ const upload = multer({ storage });
 const api_drive = require('./API_DRIVE.json')
 
 const SCOPE = ['https://www.googleapis.com/auth/drive'];
+
+const Holidays = require('date-holidays');
+
+app.get('/holidays/:year', (req, res) => {
+    const year = parseInt(req.params.year, 10);
+    const hd = new Holidays('ES', 'CN', '35');
+    const holidays = hd.getHolidays(year);
+    const filteredHolidays = holidays.filter(f => f.type === 'public');
+    res.json(filteredHolidays);
+});
 
 async function authorize() {
     const jwtClient = new google.auth.JWT(
@@ -83,47 +92,68 @@ app.post('/upload', upload.single('file'), async (req, res) => {
 });
 
 app.post('/PostUser', jsonParser, async (req, res) => {
-    const { Nombre, Pwd, Email, Rol, Fecha_alta, Horas, Foto } = req.body;
+    const Nombre_usuario = req.body["Nombre de usuario"];
+    const Nombre_completo = req.body["Nombre completo"];
+    const { Pwd, Email, Rol, Fecha_alta, Horas, Foto } = req.body;
     try {
         const hash = Crypto.AES.encrypt(Pwd, key).toString();
         const response = await notion.pages.create({
-            parent: {
-                database_id: usuariosDb,
-            },
+            parent: { database_id: usuariosDb },
             properties: {
-                Nombre: {
-                    title: [{
-                        text: {
-                            content: Nombre
-                        },
-                    },],
+                "Nombre de usuario": {
+                    title: [
+                        {
+                            type: "text",
+                            text: { content: Nombre_usuario }
+                        }
+                    ]
                 },
-                Pwd: {
-                    rich_text: [{
-                        text: {
-                            content: hash
-                        },
-                    },],
+                "Nombre completo": {
+                    rich_text: [
+                        {
+                            type: "text",
+                            text: { content: Nombre_completo }
+                        }
+                    ]
                 },
-                Email: {
+                "Pwd": {
+                    rich_text: [
+                        {
+                            type: "text",
+                            text: { content: hash }
+                        }
+                    ]
+                },
+                "Email": {
                     email: Email
                 },
-                Rol: {
+                "Rol": {
                     select: {
                         name: Rol
-                    },
-
+                    }
                 },
-                Fecha_alta: {
-                    date:
-                    {
+                "Fecha_alta": {
+                    date: {
                         start: Fecha_alta
-                    },
+                    }
                 },
-                Horas: { number: Horas },
-                Foto: Foto
-            },
+                "Horas": {
+                    number: Horas
+                },
+                "Foto": Foto,
+                "Estado": {
+                    status: {
+                        name: "Activo"
+                    }
+                },
+                "Conexion": {
+                    status: {
+                        name: "Desconectado"
+                    }
+                }
+            }
         });
+
         res.send(response);
     } catch (error) {
         console.log(error);
@@ -168,8 +198,8 @@ app.post('/login', async (req, res) => {
                         email: { equals: login }
                     },
                     {
-                        property: "Nombre",
-                        title: { contains: login }
+                        property: "Nombre de usuario",
+                        title: { equals: login }
                     }
                 ]
             }
@@ -190,7 +220,7 @@ app.post('/login', async (req, res) => {
 
         res.status(200).json({
             id: usuario.id,
-            nombre: usuario.properties.Nombre.title[0]?.plain_text,
+            nombre: usuario.properties["Nombre de usuario"].title[0]?.plain_text,
             email: usuario.properties.Email.email,
             Pwd: usuario.properties.Pwd.rich_text[0].text.content,
             rol: usuario.properties.Rol.select.name,
@@ -204,20 +234,18 @@ app.post('/login', async (req, res) => {
 });
 
 
-app.delete('/DeleteUser/:id', async (req, res) => {
+app.put('/UpdateUserState/:id', async (req, res) => {
     const { id } = req.params;
+    const { Estado } = req.body;
     try {
         const response = await notion.pages.update(
             {
                 page_id: id,
-                archived: true,
-            }
-        );
-        if (response) {
-            return res.status(200).send({ message: 'Usuario archivado correctamente' });
-        } else {
-            return res.status(400).send({ message: 'Error al archivar el usuario' });
-        }
+                properties: {
+                    Estado: { status: { name: Estado } }
+                },
+            },
+        )
     } catch (error) {
         console.error('Error al hacer la solicitud a Notion:', error);
         return res.status(500).send({ message: 'Error al eliminar el usuario', error });
@@ -226,22 +254,24 @@ app.delete('/DeleteUser/:id', async (req, res) => {
 
 app.put("/UpdateUser/:id", async (req, res) => {
     const { id } = req.params;
-    const { Nombre, Pwd, Email, Rol, Fecha_alta, Horas, Foto } = req.body;
+    const Nombre_usuario = req.body["Nombre de usuario"];
+    const Nombre_completo = req.body["Nombre completo"];
+    const { Pwd, Email, Rol, Fecha_alta, Horas, Foto } = req.body;
 
     try {
-        const user = await notion.pages.retrieve({ page_id: id });
         const hash = Crypto.AES.encrypt(Pwd, key).toString();
         const response = await notion.pages.update(
             {
                 page_id: id,
                 properties: {
-                    Nombre: { title: [{ text: { content: Nombre } }] },
+                    "Nombre de usuario": { title: [{ text: { content: Nombre_usuario } }] },
                     Email: { email: Email },
                     Pwd: { rich_text: [{ text: { content: hash }, },], },
                     Rol: { select: { name: Rol } },
                     Fecha_alta: { date: { start: Fecha_alta } },
                     Horas: { number: Horas },
-                    Foto: Foto
+                    Foto: Foto,
+                    "Nombre completo": { rich_text: [{ text: { content: Nombre_completo } }] }
                 },
             },
         );
@@ -252,11 +282,30 @@ app.put("/UpdateUser/:id", async (req, res) => {
     }
 });
 
+app.put("/UpdateUserLog/:id", async (req, res) => {
+    const { id } = req.params;
+    const { Conexion } = req.body;
+    try {
+        const response = await notion.pages.update(
+            {
+                page_id: id,
+                properties: {
+                    Conexion: { status: { name: Conexion } }
+                },
+            },
+        );
+        return res.status(200).json({ message: 'Usuario conectado', data: response });
+    } catch (error) {
+        console.error("Error actualizando usuario:", error);
+        return res.status(500).json({ error: error.message });
+    }
+});
+
 app.get('/GetUserByName/:name', async (req, res) => {
     try {
         const results = await getFromDatabase(
             usuariosDb,
-            { property: "Nombre", title: { equals: req.params.name } },
+            { property: "Nombre de usuario", title: { equals: req.params.name } },
             [{ timestamp: 'created_time', direction: 'descending' }]
         );
         res.send({ results });
@@ -313,22 +362,6 @@ app.post('/GetDecryptedPasswordByUserId', jsonParser, async (req, res) => {
     }
 });
 
-
-
-app.get('/GetSignings', async (req, res) => {
-    try {
-        const results = await getFromDatabase(
-            fichajeDb,
-            null,
-            [{ timestamp: 'created_time', direction: 'descending' }]
-        );
-        res.send({ results });
-    } catch (error) {
-        console.log(error);
-        res.status(500).json({ error: error.message });
-    }
-});
-
 app.get('/GetSigningUser/:id', async (req, res) => {
     const { id } = req.params;
     try {
@@ -337,7 +370,13 @@ app.get('/GetSigningUser/:id', async (req, res) => {
             { property: "Empleado", relation: { contains: id } },
             [{ timestamp: 'created_time', direction: 'descending' }]
         );
-        res.send({ results });
+        const results2 = await getFromDatabase(
+            historicDB,
+            { property: "Empleado", relation: { contains: id } },
+            [{ timestamp: 'created_time', direction: 'descending' }]
+        );
+        const signings = [...results, ...results2];
+        res.send({ signings });
     } catch (error) {
         console.log(error);
         res.status(500).json({ error: error.message });
@@ -401,7 +440,7 @@ app.post('/PostSigning', jsonParser, async (req, res) => {
 
 app.put("/UpdateSigning/:id", async (req, res) => {
     const { id } = req.params;
-    const { Empleado, Tipo, Fecha_hora, fecha, hora } = req.body;
+    const { Empleado, Tipo, Fecha_hora, fecha, hora, Localizacion } = req.body;
 
     try {
         const response = await notion.pages.update(
@@ -411,6 +450,7 @@ app.put("/UpdateSigning/:id", async (req, res) => {
                     Empleado: { relation: [{ id: Empleado }] },
                     Tipo: { select: { name: Tipo } },
                     Fecha_hora: { date: { start: Fecha_hora }, },
+                    Localizacion: { relation: [{ id: Localizacion }] }
                 },
             },
         );
@@ -418,6 +458,24 @@ app.put("/UpdateSigning/:id", async (req, res) => {
     } catch (error) {
         console.error("Error actualizando usuario:", error);
         res.status(500).json({ error: error.message });
+    }
+});
+
+app.delete('/DeleteSigning/:id', async (req, res) => {
+    const { id } = req.params;
+    try {
+        const response = await notion.pages.update({
+            page_id: id,
+            archived: true,
+        });
+        if (response) {
+            return res.status(200).send({ message: 'Fichaje archivado correctamente' });
+        } else {
+            return res.status(400).send({ message: 'Error al archivar el fichaje' });
+        }
+    } catch (error) {
+        console.error('Error al hacer la solicitud a Notion:', error);
+        return res.status(500).send({ message: 'Error al eliminar el fichaje', error });
     }
 });
 
@@ -649,7 +707,7 @@ cron.schedule('0 9 * * 1-5', async () => {
             }
         });
 
-        sendReminderNotification(userTokens);
+        // sendReminderNotification(userTokens);
 
     } catch (error) {
         console.error('Error al verificar fichajes:', error);
