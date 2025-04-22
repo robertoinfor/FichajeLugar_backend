@@ -186,6 +186,20 @@ app.get('/GetUsers', async (req, res) => {
     }
 });
 
+app.get('/GetSignings', async (req, res) => {
+    try {
+        const results = await getFromDatabase(
+            fichajeDb,
+            null,
+            [{ timestamp: 'created_time', direction: 'descending' }]
+        );
+        res.send({ results });
+    } catch (error) {
+        console.log(error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
 app.post('/login', async (req, res) => {
     const { login, password } = req.body;
     try {
@@ -321,11 +335,10 @@ app.post('/GetDecryptedPassword', jsonParser, async (req, res) => {
         const response = await notion.databases.query({
             database_id: tokenDB,
             filter: {
-                property: "Id",
+                property: "Token",
                 title: { equals: token }
             }
         });
-
         if (response.results.length === 0) {
             return res.status(404).json({ message: "Token no encontrado" });
         }
@@ -441,7 +454,6 @@ app.post('/PostSigning', jsonParser, async (req, res) => {
 app.put("/UpdateSigning/:id", async (req, res) => {
     const { id } = req.params;
     const { Empleado, Tipo, Fecha_hora, fecha, hora, Localizacion } = req.body;
-
     try {
         const response = await notion.pages.update(
             {
@@ -479,7 +491,7 @@ app.delete('/DeleteSigning/:id', async (req, res) => {
     }
 });
 
-app.get('/GetTokens', async (req, res) => {
+app.get('/GetTokensFCM', async (req, res) => {
     try {
         const results = await getFromDatabase(
             fcmDB,
@@ -493,8 +505,23 @@ app.get('/GetTokens', async (req, res) => {
     }
 });
 
+app.get('/GetTokens', async (req, res) => {
+    try {
+        const results = await getFromDatabase(
+            tokenDB,
+            null,
+            [{ timestamp: 'created_time', direction: 'descending' }]
+        );
+        res.send({ results });
+    } catch (error) {
+        console.log(error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
 app.post('/PostToken', jsonParser, async (req, res) => {
-    const { Id, Empleado, Estado } = req.body;
+    const Id = Crypto.lib.WordArray.random(8).toString();
+    const { Empleado } = req.body;
     const now = new Date();
     now.setMinutes(now.getMinutes() + 15)
     try {
@@ -518,12 +545,7 @@ app.post('/PostToken', jsonParser, async (req, res) => {
                         start: now.toISOString()
                     }
                 },
-                Estado: {
-                    status: {
-                        name: Estado
-                    }
-                },
-                Id: {
+                Token: {
                     title: [{
                         text: {
                             content: Id
@@ -536,7 +558,7 @@ app.post('/PostToken', jsonParser, async (req, res) => {
         const userResponse = await notion.pages.retrieve({ page_id: Empleado });
         const userEmail = userResponse.properties.Email.email;
         await sendTokenEmail(userEmail, Id);
-        res.send(response);
+        res.status(200).json({ tokenId: response.id });
     } catch (error) {
         console.log(error);
     }
@@ -562,37 +584,53 @@ async function sendTokenEmail(userEmail, token) {
     await transporter.sendMail(mailOptions);
 }
 
-async function getTokenFromDB(token) {
+async function getTokenFromDB(token, empleado) {
+    if (token == "") { return null }
     const response = await notion.databases.query({
         database_id: tokenDB,
         filter: {
-            property: "Id",
-            title: { equals: token }
+            property: "Token",
+            title: { equals: token },
         }
     });
     return response.results[0];
 }
 
 app.post('/VerifyToken', async (req, res) => {
-    const { token } = req.body;
+    const { token, empleado } = req.body;
     try {
-        const tokenRecord = await getTokenFromDB(token);
+        const tokenRecord = await getTokenFromDB(token, empleado);
         if (!tokenRecord) {
             return res.status(404).json({ message: "Token no encontrado" });
         }
-
         const generado = new Date(tokenRecord.properties.Generado.date.start);
         const ahora = new Date();
         const diffInMinutes = (ahora - generado) / (1000 * 60);
-
-        if (diffInMinutes > 15) {
+        if (diffInMinutes > 15 && generado != "") {
             return res.status(401).json({ message: "El token ha expirado" });
         }
-
         return res.status(200).json({ message: "Token válido", tokenRecord });
     } catch (error) {
         console.error("Error verificando token:", error);
         return res.status(500).json({ message: "Error en el servidor", error: error.message });
+    }
+});
+
+app.delete('/DeleteToken/:id', async (req, res) => {
+    const { id } = req.params;
+    try {
+        const response = await notion.pages.update({
+            page_id: id,
+            archived: true,
+        });
+        if (response) {
+            return res.status(200).send({ message: 'Token eliminado correctamente' });
+        } else {
+            return res.status(400).send({ message: 'Error al archivar el token' });
+        }
+    } catch (error) {
+        console.error('Error al hacer la solicitud a Notion:', error);
+        return res.status(500).send({ message: 'Error al eliminar el token', error });
     }
 });
 
@@ -657,7 +695,7 @@ app.post('/saveUserToken', jsonParser, async (req, res) => {
         });
 
         if (response.results.length === 0) {
-            const newResponse = await notion.pages.create({
+            await notion.pages.create({
                 parent: { database_id: fcmDB },
                 properties: {
                     Empleado: {
@@ -683,7 +721,6 @@ app.post('/saveUserToken', jsonParser, async (req, res) => {
 
 cron.schedule('0 9 * * 1-5', async () => {
     console.log('Verificando fichajes a las 9:00 AM...');
-
     try {
         const response = await notion.databases.query({
             database_id: fichajeDb,
@@ -759,12 +796,15 @@ app.post('/PostLocation', jsonParser, async (req, res) => {
     }
 });
 
-app.delete('/DeleteLocation/:id', async (req, res) => {
+app.put('/ChangeStateLocation/:id', async (req, res) => {
     const { id } = req.params;
+    const { Estado } = req.body;
     try {
         const response = await notion.pages.update({
             page_id: id,
-            archived: true,
+            properties: {
+                Estado: { status: { name: Estado } }
+            },
         });
         if (response) {
             return res.status(200).send({ message: 'Localización archivada correctamente' });
