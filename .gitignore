@@ -11,6 +11,7 @@ npm-debug.log*
 
 #API_KEYS
 API_DRIVE.json
+API_FIREBASE.JSON
 
 # Build files
 dist/

@@ -6,12 +6,13 @@ const jsonParser = bodyParser.json();
 const port = process.env.PORT || 8000;
 const Crypto = require('crypto-js');
 const nodemailer = require('nodemailer');
-const admin = require('firebase-admin');
 const cron = require('node-cron');
 const multer = require('multer');
 const { google } = require('googleapis');
 const stream = require('stream');
 require('dotenv').config();
+const { admin, fcm } = require('./firebase');
+
 
 const app = express();
 app.use(cors());
@@ -635,122 +636,99 @@ app.delete('/DeleteToken/:id', async (req, res) => {
 });
 
 app.post('/sendNotification', async (req, res) => {
-    const { token, title, body } = req.body;
-
-    const message = {
-        notification: {
-            title: title,
-            body: body,
-        },
-        token: token,
-    };
-
-    try {
-        const response = await admin.messaging().send(message);
-        console.log('Notificación enviada:', response);
-        res.status(200).send({ message: 'Notificación enviada correctamente', response });
-    } catch (error) {
-        console.error('Error al enviar la notificación:', error);
-        res.status(500).send({ message: 'Error al enviar la notificación', error });
+    const { userId, title, body, data = {} } = req.body;
+    if (!userId || !title || !body) {
+        return res.status(400).json({ error: 'userId, title y body son requeridos' });
     }
-});
 
-app.get('/checkToken', async (req, res) => {
-    const { userId } = req.query;
     try {
-        const response = await notion.databases.query({
+        const query = await notion.databases.query({
             database_id: fcmDB,
             filter: {
-                property: "Empleado",
-                relation: [{
-                    contains: userId,
-                }
-                ]
+                property: 'Empleado',
+                relation: { contains: userId }
             }
         });
-
-        if (response.results.length > 0) {
-            const existingToken = response.results[0].properties.Token.title[0].text.content;
-            return res.json({ token: existingToken });
+        if (!query.results.length) {
+            return res.status(404).json({ error: 'No se encontró token para ese usuario' });
         }
+        const token = query.results[0].properties.Token.title[0].plain_text;
 
-        res.json({ token: null });
+        const message = {
+            token,
+            notification: { title, body },
+            data
+        };
+        const response = await fcm.send(message);
+        return res.json({ message: 'Notificación enviada', id: response });
     } catch (error) {
-        console.error("Error al verificar el token FCM:", error);
-        res.status(500).json({ error: "Error al verificar el token FCM" });
+        console.error('Error POST /sendNotification:', error);
+        return res.status(500).json({ error: error.message });
     }
 });
 
-app.post('/saveUserToken', jsonParser, async (req, res) => {
-    const { userId, token } = req.body;
+app.get('/fcm/token/:userId', async (req, res) => {
+    const { userId } = req.params;
     try {
-        const response = await notion.databases.query({
+        const query = await notion.databases.query({
             database_id: fcmDB,
             filter: {
-                property: "Empleado",
-                relation: {
-                    contains: userId,
-                }
+                property: 'Empleado',
+                relation: { contains: userId }
+            }
+        });
+        if (!query.results.length) {
+            return res.json({ token: null });
+        }
+        const page = query.results[0];
+        const token = page.properties.Token.title[0]?.plain_text || null;
+        return res.json({ token, pageId: page.id });
+    } catch (error) {
+        console.error('Error GET /fcm/token:', error);
+        return res.status(500).json({ error: error.message });
+    }
+});
+
+app.post('/fcm/token', async (req, res) => {
+    const { userId, token } = req.body;
+    if (!userId || !token) {
+        return res.status(400).json({ error: 'userId y token requeridos' });
+    }
+
+    try {
+        const query = await notion.databases.query({
+            database_id: fcmDB,
+            filter: {
+                property: 'Empleado',
+                relation: { contains: userId }
             }
         });
 
-        if (response.results.length === 0) {
+        if (query.results.length === 0) {
             await notion.pages.create({
                 parent: { database_id: fcmDB },
                 properties: {
-                    Empleado: {
-                        relation: [{ id: userId }],
-                    },
-                    Token: {
-                        title: [{
-                            text: { content: token }
-                        }],
-                    },
-                },
+                    Empleado: { relation: [{ id: userId }] },
+                    Token: { title: [{ text: { content: token } }] }
+                }
             });
-            return res.status(200).send({ message: "Token guardado exitosamente" });
+            return res.status(201).json({ message: 'Token creado' });
         } else {
-            res.status(200).send({ message: "Token ya existe" });
+            const pageId = query.results[0].id;
+            await notion.pages.update({
+                page_id: pageId,
+                properties: {
+                    Token: { title: [{ text: { content: token } }] },
+                    Editado: { date: { start: new Date() } }
+                }
+            });
+            return res.json({ message: 'Token actualizado' });
         }
     } catch (error) {
-        console.error("Error al guardar el token FCM:", error);
-        res.status(500).json({ error: "Error al guardar el token FCM" });
+        console.error('Error POST /fcm/token:', error);
+        return res.status(500).json({ error: error.message });
     }
 });
-
-
-cron.schedule('0 9 * * 1-5', async () => {
-    console.log('Verificando fichajes a las 9:00 AM...');
-    try {
-        const response = await notion.databases.query({
-            database_id: fichajeDb,
-            filter: {
-                property: "Fecha_hora",
-                date: {
-                    after: new Date(),
-                }
-            }
-        });
-
-        const users = response.results;
-        const userTokens = [];
-
-        users.forEach(user => {
-            const userToken = getUserToken(user);
-            if (!userToken) return;
-
-            if (hasNotClockedIn(user)) {
-                userTokens.push(userToken);
-            }
-        });
-
-        // sendReminderNotification(userTokens);
-
-    } catch (error) {
-        console.error('Error al verificar fichajes:', error);
-    }
-});
-
 
 app.get('/GetLocations', async (req, res) => {
     try {
@@ -920,6 +898,44 @@ cron.schedule('0 0 1 * *', async () => {
         console.log('Proceso de archivado mensual completado.');
     } catch (error) {
         console.error('Error archivando fichajes mensuales:', error);
+    }
+});
+
+cron.schedule('15 09 * * 1-5', async () => {
+    console.log('⏰ Ejecutando recordatorio diario de fichajes…');
+    const hoy = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+
+    try {
+        const signings = await notion.databases.query({
+            database_id: fichajeDb,
+            filter: { property: 'Fecha_hora', date: { equals: hoy } }
+        });
+        const fichados = new Set(signings.results
+            .flatMap(p => p.properties.Empleado.relation.map(r => r.id)));
+
+        const tokensPages = await notion.databases.query({
+            database_id: fcmDB
+        });
+        const usuariosConToken = tokensPages.results.map(p => ({
+            userId: p.properties.Empleado.relation[0].id,
+            token: p.properties.Token.title[0].plain_text
+        }));
+
+        for (const { userId, token } of usuariosConToken) {
+            if (!fichados.has(userId)) {
+                await fcm.send({
+                    token,
+                    notification: {
+                        title: '⏰ ¡No olvides fichar!',
+                        body: 'Aún no has fichado hoy. Regístrate al entrar.'
+                    },
+                    data: { type: 'recordatorio_fichaje' }
+                });
+            }
+        }
+        console.log('Recordatorios enviados.');
+    } catch (e) {
+        console.error('Error en cron de recordatorio:', e);
     }
 });
 
