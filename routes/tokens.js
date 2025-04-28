@@ -4,6 +4,7 @@ const uc = require('../controllers/tokensController');
 
 router.post('/decrypt', uc.decrypt);
 router.delete('/:id/delete', uc.deleteToken);
+router.post('/', uc.postToken),
 router.get('/', uc.getTokens)
 
 module.exports = router;
