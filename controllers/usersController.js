@@ -6,7 +6,7 @@ exports.createUser = async (req, res, next) => {
   try {
     const {
       'Nombre de usuario': Nombre_usuario,
-      'Nombre completo' : Nombre_completo,
+      'Nombre completo': Nombre_completo,
       Pwd, Email, Rol, Fecha_alta, Horas, Foto
     } = req.body;
 
@@ -16,15 +16,15 @@ exports.createUser = async (req, res, next) => {
       parent: { database_id: db.usuariosDb },
       properties: {
         "Nombre de usuario": { title: [{ text: { content: Nombre_usuario } }] },
-        "Nombre completo" : { rich_text: [{ text: { content: Nombre_completo } }] },
-        "Pwd"             : { rich_text: [{ text: { content: hash } }] },
-        "Email"           : { email: Email },
-        "Rol"             : { select: { name: Rol } },
-        "Fecha_alta"      : { date:   { start: Fecha_alta } },
-        "Horas"           : { number: Horas },
-        "Foto"            : Foto,
-        "Estado"          : { status: { name: "Activo" } },
-        "Conexion"        : { status: { name: "Desconectado" } }
+        "Nombre completo": { rich_text: [{ text: { content: Nombre_completo } }] },
+        "Pwd": { rich_text: [{ text: { content: hash } }] },
+        "Email": { email: Email },
+        "Rol": { select: { name: Rol } },
+        "Fecha_alta": { date: { start: Fecha_alta } },
+        "Horas": { number: Horas },
+        "Foto": Foto,
+        "Estado": { status: { name: "Activo" } },
+        "Conexion": { status: { name: "Desconectado" } }
       }
     });
 
@@ -68,7 +68,7 @@ exports.login = async (req, res, next) => {
       database_id: db.usuariosDb,
       filter: {
         or: [
-          { property: "Email",            email: { equals: login } },
+          { property: "Email", email: { equals: login } },
           { property: "Nombre de usuario", title: { equals: login } }
         ]
       }
@@ -85,10 +85,10 @@ exports.login = async (req, res, next) => {
     }
 
     res.json({
-      id:         user.id,
-      nombre:     user.properties["Nombre de usuario"].title[0]?.plain_text,
-      email:      user.properties.Email.email,
-      rol:        user.properties.Rol.select.name,
+      id: user.id,
+      nombre: user.properties["Nombre de usuario"].title[0]?.plain_text,
+      email: user.properties.Email.email,
+      rol: user.properties.Rol.select.name,
       fecha_alta: user.properties.Fecha_alta.date.start
     });
   } catch (err) {
@@ -101,7 +101,7 @@ exports.updateUser = async (req, res, next) => {
     const { id } = req.params;
     const {
       'Nombre de usuario': Nombre_usuario,
-      'Nombre completo' : Nombre_completo,
+      'Nombre completo': Nombre_completo,
       Pwd, Email, Rol, Fecha_alta, Horas, Foto
     } = req.body;
 
@@ -111,13 +111,13 @@ exports.updateUser = async (req, res, next) => {
       page_id: id,
       properties: {
         "Nombre de usuario": { title: [{ text: { content: Nombre_usuario } }] },
-        "Nombre completo" : { rich_text: [{ text: { content: Nombre_completo } }] },
-        "Pwd"             : { rich_text: [{ text: { content: hash } }] },
-        "Email"           : { email: Email },
-        "Rol"             : { select: { name: Rol } },
-        "Fecha_alta"      : { date:   { start: Fecha_alta } },
-        "Horas"           : { number: Horas },
-        "Foto"            : Foto
+        "Nombre completo": { rich_text: [{ text: { content: Nombre_completo } }] },
+        "Pwd": { rich_text: [{ text: { content: hash } }] },
+        "Email": { email: Email },
+        "Rol": { select: { name: Rol } },
+        "Fecha_alta": { date: { start: Fecha_alta } },
+        "Horas": { number: Horas },
+        "Foto": Foto
       }
     });
 
@@ -158,7 +158,7 @@ exports.updateUserLog = async (req, res, next) => {
 exports.decrypt = async (req, res, next) => {
   try {
     const { userId } = req.body;
-    const password   = await decryptPwdByUserId(userId);
+    const password = await decryptPwdByUserId(userId);
     res.json({ password });
   } catch (err) {
     next(err);

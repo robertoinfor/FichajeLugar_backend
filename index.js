@@ -12,5 +12,5 @@ app.use(cors());
 app.use(bodyParser.json());
 
 app.listen(port, () => {
-    console.log('server listening on port 8000!');
+    console.log('server listening on port '+ port);
 });
