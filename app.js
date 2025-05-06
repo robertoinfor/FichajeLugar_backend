@@ -11,6 +11,7 @@ const locationsRoutes = require('./routes/locations')
 const fcmRoutes = require('./routes/fcm');
 const holidaysRoutes = require('./routes/holidays')
 const driveRoutes = require('./routes/drive')
+const ping = require('./routes/ping')
 
 app.use(cors(), bodyParser.json());
 
@@ -29,5 +30,6 @@ app.use('/locations', locationsRoutes);
 app.use('/fcm', fcmRoutes);
 app.use('/holidays', holidaysRoutes);
 app.use('/drive', driveRoutes);
+app.use('/ping', ping)
 
 module.exports = app;
