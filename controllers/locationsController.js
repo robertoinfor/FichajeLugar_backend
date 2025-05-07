@@ -9,8 +9,11 @@ exports.getLocations = async (req, res) => {
         );
         res.send({ results });
     } catch (error) {
-        console.log(error);
-        res.status(500).json({ error: error.message });
+        console.error("Error en getLocations:", err.message || err);
+        res.status(500).json({
+            error: 'No se pudieron obtener las ubicaciones. Inténtalo más tarde.',
+            details: err.message || err
+        });
     }
 };
 
