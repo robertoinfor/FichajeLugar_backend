@@ -1,10 +1,12 @@
-const cron = require('node-cron');
+const { CronJob } = require('cron');
 const { notion, db } = require('../utils/notion');
 const { fcm } = require('../firebase');
+const dayjs = require('dayjs');
 
-cron.schedule('15 09 * * 1-5', async () => {
+
+const job = new CronJob('20 09 * * 1-5', async () => {
     console.log('⏰ Ejecutando recordatorio diario de fichajes…');
-    const hoy = new Date().toISOString().slice(0, 10);
+    const hoy = dayjs().tz('Atlantic/Canary').format('YYYY-MM-DD');
 
     try {
         const signings = await notion.databases.query({
@@ -39,3 +41,5 @@ cron.schedule('15 09 * * 1-5', async () => {
         console.error('Error en cron de recordatorio:', e);
     }
 });
+
+job.start();
