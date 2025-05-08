@@ -42,7 +42,8 @@ exports.postToken = async (req, res) => {
                 parent: { database_id: db.fcmDB },
                 properties: {
                     Empleado: { relation: [{ id: userId }] },
-                    Token: { title: [{ text: { content: token } }] }
+                    Token: { title: [{ text: { content: token } }] },
+                    Editado: { date: { start: new Date() } }
                 }
             });
             return res.status(201).json({ message: 'Token creado' });
