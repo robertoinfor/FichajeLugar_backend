@@ -108,3 +108,21 @@ exports.sendNotification = async (req, res) => {
         return res.status(500).json({ error: error.message });
     }
 };
+
+exports.deleteTokenFCM = async (req, res) => {
+    const { id } = req.params;
+    try {
+        const response = await notion.pages.update({
+            page_id: id,
+            archived: true,
+        });
+        if (response) {
+            return res.status(200).send({ message: 'Token FCM archivado correctamente' });
+        } else {
+            return res.status(400).send({ message: 'Error al archivar el token FCM' });
+        }
+    } catch (error) {
+        console.error('Error al hacer la solicitud a Notion:', error);
+        return res.status(500).send({ message: 'Error al eliminar el token FCM', error });
+    }
+};
