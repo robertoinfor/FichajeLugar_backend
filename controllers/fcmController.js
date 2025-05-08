@@ -39,7 +39,7 @@ exports.postToken = async (req, res) => {
 
         if (query.results.length === 0) {
             await notion.pages.create({
-                parent: { database_id: fcmDB },
+                parent: { database_id: db.fcmDB },
                 properties: {
                     Empleado: { relation: [{ id: userId }] },
                     Token: { title: [{ text: { content: token } }] }
