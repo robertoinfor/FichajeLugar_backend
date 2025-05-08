@@ -2,7 +2,7 @@ const multer = require('multer');
 const { google } = require('googleapis');
 const stream = require('stream');
 
-const apiCreds = process.env.API_DRIVE_KEY;
+const apiCreds = JSON.parse(process.env.API_DRIVE_KEY);
 
 const storage = multer.memoryStorage();
 exports.uploadMiddleware = multer({ storage });
