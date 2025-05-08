@@ -4,7 +4,7 @@ const { notion, db } = require('../utils/notion');
 const dayjs = require('dayjs');
 
 const job = new CronJob(
-  '28 09 * * 1-5',
+  '15 09 * * 1-5',
   async () => {
     console.log('⏰ Ejecutando recordatorio diario de fichajes…');
 
