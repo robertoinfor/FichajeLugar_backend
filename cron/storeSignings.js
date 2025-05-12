@@ -1,6 +1,7 @@
 const cron = require('node-cron');
 const { notion, db } = require('../utils/notion');
 
+// El primer día de cada mes almacena los fichajes en el histórico
 cron.schedule('00 0 1 * *', async () => {
     console.log('Iniciando proceso de archivado mensual de fichajes...');
     try {

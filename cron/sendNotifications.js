@@ -3,6 +3,7 @@ const { fcm } = require('../firebase');
 const { notion, db } = require('../utils/notion');
 const dayjs = require('dayjs');
 
+// Comprueba quién no ha fichado a las 9:15 de Lunes a Viernes y envía la notificación de recordatorio
 const job = new CronJob(
   '15 09 * * 1-5',
   async () => {

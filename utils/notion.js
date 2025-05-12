@@ -1,6 +1,7 @@
 const { Client } = require('@notionhq/client');
 require('dotenv').config();
 
+// Realiza la autentificación de Notion
 const notion = new Client({ auth: process.env.TOKEN_NOTION });
 const db = {
     usuariosDb: process.env.USERSDB_KEY,
@@ -11,6 +12,7 @@ const db = {
     historicDB: process.env.HISTORIC_KEY
 };
 
+// Devuelve los datos de una base de datos con un posible filtro y orden especificados
 async function getFromDatabase(databaseId, filter = null, sorts = null) {
     const q = { database_id: databaseId };
     if (filter) q.filter = filter;

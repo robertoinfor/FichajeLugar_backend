@@ -6,6 +6,7 @@ require('dotenv').config();
 require('./cron/storeSignings');
 require('./cron/sendNotifications');
 
+// Inicio la app con las rutas asignadas y las tareas cron
 const app = require('./app');
 
 app.use(cors());

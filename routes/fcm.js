@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const uc = require('../controllers/fcmController');
 
+// Rutas para las acciones del controlador
 router.get('/token/:userId', uc.getToken);
 router.post('/token', uc.postToken);
 router.post('/send', uc.sendNotification);

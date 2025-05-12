@@ -4,6 +4,7 @@ const bodyParser = require('body-parser');
 const app = express();
 app.use(cors(), bodyParser.json());
 
+// Importo las rutas de las acciones de los controladores
 const usersRoutes = require('./routes/users');
 const signingsRoutes = require('./routes/signings')
 const tokensRoutes = require('./routes/tokens')
@@ -23,6 +24,7 @@ app.use(async (req, res, next) => {
   next();
 });
 
+// Establezco la ruta raíz de cada una de las acciones 
 app.use('/users', usersRoutes);
 app.use('/signings', signingsRoutes);
 app.use('/tokens', tokensRoutes);

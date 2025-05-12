@@ -7,6 +7,7 @@ const apiCreds = JSON.parse(process.env.API_DRIVE_KEY);
 const storage = multer.memoryStorage();
 exports.uploadMiddleware = multer({ storage });
 
+// Realiza la autentificación del drive
 exports.authorize = async () => {
   const jwtClient = new google.auth.JWT(
     apiCreds.client_email,
@@ -18,6 +19,7 @@ exports.authorize = async () => {
   return jwtClient;
 };
 
+// Carga el archivo
 exports.uploadFile = (authClient, image) =>
   new Promise((resolve, reject) => {
     const drive = google.drive({ version: 'v3', auth: authClient });

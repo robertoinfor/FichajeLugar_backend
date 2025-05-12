@@ -3,6 +3,7 @@ const { notion, db, getFromDatabase } = require('../utils/notion');
 const Crypto = require('crypto-js');
 const nodemailer = require('nodemailer');
 
+// Verifico que existe el token para devolver la contraseña
 exports.decrypt = async (req, res, next) => {
     try {
         const { token } = req.body;
@@ -13,6 +14,7 @@ exports.decrypt = async (req, res, next) => {
     }
 };
 
+// Guardo un token para desencriptar la contraseña de un usuario
 exports.postToken = async (req, res) => {
     const Id = Crypto.lib.WordArray.random(8).toString();
     const { Empleado } = req.body;
@@ -58,6 +60,7 @@ exports.postToken = async (req, res) => {
     }
 };
 
+// Envío el token al correo
 async function sendTokenEmail(userEmail, token) {
     const transporter = nodemailer.createTransport({
         service: 'gmail',
@@ -78,6 +81,7 @@ async function sendTokenEmail(userEmail, token) {
     await transporter.sendMail(mailOptions);
 }
 
+// Borro un token de la base de datos
 exports.deleteToken = async (req, res) => {
     const { id } = req.params;
     try {
@@ -96,6 +100,7 @@ exports.deleteToken = async (req, res) => {
     }
 };
 
+// Recojo todos los tokens de recuperación de contraseña
 exports.getTokens = async (req, res) => {
     try {
         const results = await getFromDatabase(

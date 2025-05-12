@@ -2,6 +2,7 @@ const { notion, db } = require('./notion');
 const CryptoJS = require('crypto-js');
 const key = process.env.ENCRYPTION_KEY;
 
+// Devuelve la contraseña desencriptada de un usuario
 async function decryptPwdByUserId(userId) {
     const userPage = await notion.pages.retrieve({ page_id: userId });
     const storedCipher = userPage.properties.Pwd.rich_text[0]?.text.content;
@@ -9,6 +10,7 @@ async function decryptPwdByUserId(userId) {
     return bytes.toString(CryptoJS.enc.Utf8);
 }
 
+// Según el token, desencripta la contrasela
 async function decryptPwdByToken(token) {
     const resp = await notion.databases.query({
         database_id: db.tokenDB,

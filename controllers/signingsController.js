@@ -6,6 +6,7 @@ const timezone = require('dayjs/plugin/timezone');
 dayjs.extend(utc);
 dayjs.extend(timezone);
 
+// Recojo todos los fichajes
 exports.getSignings =  async (req, res) => {
     try {
         const results = await getFromDatabase(
@@ -20,6 +21,7 @@ exports.getSignings =  async (req, res) => {
     }
 };
 
+// Recojo los fichajes de un usuario por nombre o email
 exports.getSigningsUser = async (req, res) => {
     const { id } = req.params;
     try {
@@ -41,6 +43,7 @@ exports.getSigningsUser = async (req, res) => {
     }
 };
 
+// Recojo los fichajes por el id del usuario
 exports.getSigningbyId = async (req, res) => {
     const { id } = req.params;
     try {
@@ -54,6 +57,7 @@ exports.getSigningbyId = async (req, res) => {
     }
 };
 
+// Subo un fichaje
 exports.postSigning = async (req, res) => {
     let id = `${new Date().toLocaleString('es-ES', { month: 'long' }).charAt(0).toUpperCase() + new Date().toLocaleString('es-ES', { month: 'long' }).slice(1)} ${new Date().getFullYear()}`;
     const { Empleado, Tipo, Localizacion } = req.body;
@@ -98,6 +102,7 @@ exports.postSigning = async (req, res) => {
     }
 };
 
+// Actualizo un fichaje
 exports.updateSigning = async (req, res) => {
     const { id } = req.params;
     const { Empleado, Tipo, Fecha_hora, Localizacion } = req.body;
@@ -120,6 +125,7 @@ exports.updateSigning = async (req, res) => {
     }
 };
 
+// Borro un fichaje
 exports.deleteSigning = async (req, res) => {
     const { id } = req.params;
     try {
@@ -138,6 +144,7 @@ exports.deleteSigning = async (req, res) => {
     }
 };
 
+// Hago múltiples peticiones a página de Notion para recoger todos los fichajes (devuelve máximo 100 datos a recoger por petición) 
 async function getAllSigningsFromDB(databaseId) {
     let allResults = [];
     let cursor = undefined;
@@ -152,6 +159,7 @@ async function getAllSigningsFromDB(databaseId) {
     return allResults;
 }
 
+// Recojo todos los fichajes de ambas páginas de Notion (fichajes e histórico)
 exports.getAllSignings = async (req, res) => {
     try {
         const activeSignings = await getAllSigningsFromDB(db.fichajeDb);

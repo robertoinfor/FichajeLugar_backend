@@ -1,5 +1,6 @@
 const { notion, db, getFromDatabase } = require('../utils/notion');
 
+// Recojo las ubicaciones
 exports.getLocations = async (req, res) => {
     try {
         const results = await getFromDatabase(
@@ -17,6 +18,7 @@ exports.getLocations = async (req, res) => {
     }
 };
 
+// Subo una ubicación
 exports.postLocation = async (req, res) => {
     const { Nombre, Longitud, Latitud } = req.body;
     try {
@@ -50,6 +52,7 @@ exports.postLocation = async (req, res) => {
     }
 };
 
+// Cambia el estado de una ubicación para desactivarla
 exports.changeStateLocation = async (req, res) => {
     const { id } = req.params;
     const { Estado } = req.body;
@@ -71,6 +74,7 @@ exports.changeStateLocation = async (req, res) => {
     }
 };
 
+// Actualiza el nombre de una ubicación
 exports.updateLocation = async (req, res) => {
     const { id } = req.params;
     const { Nombre } = req.body;

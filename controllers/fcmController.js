@@ -1,5 +1,6 @@
 const { notion, db, getFromDatabase } = require('../utils/notion');
 
+// Recojo el token FCM de un usuario
 exports.getToken = async (req, res) => {
     const { userId } = req.params;
     try {
@@ -22,6 +23,7 @@ exports.getToken = async (req, res) => {
     }
 };
 
+// Subo un token de un usuario
 exports.postToken = async (req, res) => {
     const { userId, token } = req.body;
     if (!userId || !token) {
@@ -64,6 +66,7 @@ exports.postToken = async (req, res) => {
     }
 };
 
+// Devuelve todos los tokens FCM
 exports.getTokensFCM = async (req, res) => {
     try {
         const results = await getFromDatabase(
@@ -78,6 +81,7 @@ exports.getTokensFCM = async (req, res) => {
     }
 };
 
+// Mando la notificación
 exports.sendNotification = async (req, res) => {
     const { userId, title, body, data = {} } = req.body;
     if (!userId || !title || !body) {
@@ -110,6 +114,7 @@ exports.sendNotification = async (req, res) => {
     }
 };
 
+// Borro un token FCM
 exports.deleteTokenFCM = async (req, res) => {
     const { id } = req.params;
     try {

@@ -1,5 +1,6 @@
 const { authorize, uploadFile } = require('../utils/drive');
 
+// Sube la imagen a drive
 exports.handleUpload = async (req, res, next) => {
     try {
         const authClient = await authorize();

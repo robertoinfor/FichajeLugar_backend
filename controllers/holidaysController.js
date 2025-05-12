@@ -1,5 +1,6 @@
 const Holidays = require('date-holidays');
 
+// Genero las vacaciones para el calendario
 exports.getPublicHolidays = (req, res, next) => {
     try {
         const year = parseInt(req.params.year, 10);

@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const uc = require('../controllers/signingsController');
 
+// Rutas para las acciones del controlador
 router.get('/allsignings', uc.getAllSignings);
 
 router.post('/', uc.postSigning); 

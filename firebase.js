@@ -6,6 +6,7 @@ const serviceAccount = {
   client_email: process.env.CLIENT_MAIL_KEY,
 };
 
+// Inicializa la app de Firebase para las notificaciones
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
 });

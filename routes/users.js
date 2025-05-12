@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const uc = require('../controllers/usersController');
 
+// Rutas para las acciones del controlador
 router.post('/login', uc.login);
 router.post('/decrypt', uc.decrypt);
 

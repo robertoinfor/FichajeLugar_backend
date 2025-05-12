@@ -2,6 +2,7 @@ const { notion, db, getFromDatabase } = require('../utils/notion');
 const { encrypt, decrypt } = require('../utils/crypto');
 const { decryptPwdByUserId } = require('../utils/password');
 
+// Subo un usuario a Notion
 exports.createUser = async (req, res, next) => {
   try {
     const {
@@ -34,6 +35,7 @@ exports.createUser = async (req, res, next) => {
   }
 };
 
+// Devuelvo todos los usuarios
 exports.getAllUsers = async (req, res, next) => {
   try {
     const results = await getFromDatabase(
@@ -47,6 +49,7 @@ exports.getAllUsers = async (req, res, next) => {
   }
 };
 
+// Devuelvo un usuario según su nombre de usuario
 exports.getUserByName = async (req, res, next) => {
   try {
     const name = req.params.name;
@@ -61,6 +64,7 @@ exports.getUserByName = async (req, res, next) => {
   }
 };
 
+// Compruebo que el usuario existe y que es la contraseña pasada
 exports.login = async (req, res, next) => {
   try {
     const { login, password } = req.body;
@@ -96,6 +100,7 @@ exports.login = async (req, res, next) => {
   }
 };
 
+// Actualizo los datos de un usuario
 exports.updateUser = async (req, res, next) => {
   try {
     const { id } = req.params;
@@ -127,6 +132,7 @@ exports.updateUser = async (req, res, next) => {
   }
 };
 
+// Actualizo solo el estado del usuario
 exports.updateUserState = async (req, res, next) => {
   try {
     const { id } = req.params;
@@ -141,6 +147,7 @@ exports.updateUserState = async (req, res, next) => {
   }
 };
 
+// Actualizo el estado de conexión del usuario
 exports.updateUserLog = async (req, res, next) => {
   try {
     const { id } = req.params;
@@ -155,6 +162,7 @@ exports.updateUserLog = async (req, res, next) => {
   }
 };
 
+// Recojo la contraseña de un usuario
 exports.decrypt = async (req, res, next) => {
   try {
     const { userId } = req.body;
