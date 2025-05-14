@@ -20,6 +20,7 @@ exports.uploadMiddleware = multer({ storage });
 
 // Realiza la autentificación del drive
 exports.authorize = async () => {
+  console.log(apiCreds.private_key)
   const jwtClient = new google.auth.JWT(
     apiCreds.client_email,
     null,
