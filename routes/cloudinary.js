@@ -3,6 +3,6 @@ const router = express.Router();
 const { uploadMiddleware, uploadToCloudinary } = require('../controllers/cloudinaryController');
 
 // Ruta POST /upload
-router.post('/upload', uploadMiddleware, uploadToCloudinary);
+router.post('/', uploadMiddleware, uploadToCloudinary);
 
 module.exports = router;
