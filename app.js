@@ -13,6 +13,7 @@ const fcmRoutes = require('./routes/fcm');
 const holidaysRoutes = require('./routes/holidays')
 const driveRoutes = require('./routes/drive')
 const ping = require('./routes/ping')
+const cloudinary = require('./routes/cloudinary')
 
 app.use(cors(), bodyParser.json());
 
@@ -33,5 +34,6 @@ app.use('/fcm', fcmRoutes);
 app.use('/holidays', holidaysRoutes);
 app.use('/drive', driveRoutes);
 app.use('/ping', ping)
+app.use('/cloudinary', cloudinary)
 
 module.exports = app;
