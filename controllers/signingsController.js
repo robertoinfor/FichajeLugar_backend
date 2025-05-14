@@ -60,9 +60,7 @@ exports.getSigningbyId = async (req, res) => {
 // Subo un fichaje
 exports.postSigning = async (req, res) => {
     let id = `${new Date().toLocaleString('es-ES', { month: 'long' }).charAt(0).toUpperCase() + new Date().toLocaleString('es-ES', { month: 'long' }).slice(1)} ${new Date().getFullYear()}`;
-    const { Empleado, Tipo, Localizacion } = req.body;
-    const Fecha_hora = dayjs().tz('Atlantic/Canary').format();
-    console.log(Fecha_hora)
+    const { Empleado, Tipo, Localizacion, Fecha_hora } = req.body;
 
     try {
         const response = await notion.pages.create({
