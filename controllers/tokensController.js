@@ -65,8 +65,8 @@ async function sendTokenEmail(userEmail, token) {
     const transporter = nodemailer.createTransport({
         service: 'gmail',
         auth: {
-            user: 'robertoinfor03@gmail.com',
-            pass: 'cqdi fptn qnxx jarf'
+            user: process.env.EMAIL_USER,
+            pass: process.env.EMAL_PASS
         }
     });
 
