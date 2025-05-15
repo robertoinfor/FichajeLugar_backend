@@ -22,7 +22,7 @@ exports.createUser = async (req, res, next) => {
         "Email": { email: Email },
         "Rol": { select: { name: Rol } },
         "Fecha_alta": { date: { start: Fecha_alta } },
-        "Horas": { number: Horas },
+        "Horas": { rich_text: { text: { content: Horas } } },
         "Foto": Foto,
         "Estado": { status: { name: "Activo" } },
         "Conexion": { status: { name: "Desconectado" } }
@@ -121,7 +121,7 @@ exports.updateUser = async (req, res, next) => {
         "Email": { email: Email },
         "Rol": { select: { name: Rol } },
         "Fecha_alta": { date: { start: Fecha_alta } },
-        "Horas": { number: Horas },
+        "Horas": { rich_text: { text: { content: Horas } } },
         "Foto": Foto
       }
     });
@@ -162,7 +162,7 @@ exports.updateUserLog = async (req, res, next) => {
   }
 };
 
-// Recojo la contraseña de un usuario
+// Recojo la contraseña de un usuario para desencriptarla
 exports.decrypt = async (req, res, next) => {
   try {
     const { userId } = req.body;
