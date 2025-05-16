@@ -71,7 +71,7 @@ async function sendTokenEmail(userEmail, token) {
     });
 
     const mailOptions = {
-        from: '"Soporte" <tuemail@gmail.com>',
+        from: '"Soporte" <robertoinfor03@gmail.com>',
         to: userEmail,
         subject: "Recuperación de Contraseña",
         text: `Tu código de verificación es: ${token}. Expira en 15 minutos.`,

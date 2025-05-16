@@ -21,7 +21,7 @@ exports.uploadToCloudinary = async (req, res) => {
       return res.status(400).json({ error: 'No se envió ninguna imagen' });
     }
 
-    const imageUrl = req.file.path; // URL pública en Cloudinary
+    const imageUrl = req.file.path;
     return res.status(200).json({ fileUrl: imageUrl });
   } catch (error) {
     console.error('Error al subir imagen a Cloudinary:', error);

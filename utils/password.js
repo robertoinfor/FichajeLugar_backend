@@ -10,7 +10,7 @@ async function decryptPwdByUserId(userId) {
     return bytes.toString(CryptoJS.enc.Utf8);
 }
 
-// Según el token, desencripta la contrasela
+// Según el token, desencripta la contraseña
 async function decryptPwdByToken(token) {
     const resp = await notion.databases.query({
         database_id: db.tokenDB,
