@@ -121,7 +121,7 @@ exports.updateUser = async (req, res, next) => {
         "Email": { email: Email },
         "Rol": { select: { name: Rol } },
         "Fecha_alta": { date: { start: Fecha_alta } },
-        "Horas": { rich_text: { text: { content: Horas } } },
+        "Horas": { rich_text: [{ text: { content: Horas } }] },
         "Foto": Foto
       }
     });
