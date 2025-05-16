@@ -7,7 +7,7 @@ dayjs.extend(utc);
 dayjs.extend(timezone);
 
 // Recojo todos los fichajes
-exports.getSignings =  async (req, res) => {
+exports.getSignings = async (req, res) => {
     try {
         const results = await getFromDatabase(
             db.fichajeDb,
@@ -60,7 +60,8 @@ exports.getSigningbyId = async (req, res) => {
 // Subo un fichaje
 exports.postSigning = async (req, res) => {
     let id = `${new Date().toLocaleString('es-ES', { month: 'long' }).charAt(0).toUpperCase() + new Date().toLocaleString('es-ES', { month: 'long' }).slice(1)} ${new Date().getFullYear()}`;
-    const { Empleado, Tipo, Localizacion, Fecha_hora } = req.body;
+    let Fecha_hora = dayjs().tz('Atlantic/Canary').format();
+    const { Empleado, Tipo, Localizacion } = req.body;
 
     try {
         const response = await notion.pages.create({
