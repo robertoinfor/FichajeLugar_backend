@@ -21,6 +21,7 @@ cron.schedule('00 0 1 * *', async () => {
                 Id: fichaje.properties.Id,
                 Localizacion: fichaje.properties.Localizacion
             };
+            console.log(newProperties)
 
             await notion.pages.create({
                 parent: { database_id: db.historicDB },

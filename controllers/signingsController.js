@@ -101,6 +101,49 @@ exports.postSigning = async (req, res) => {
     }
 };
 
+// Subo un fichaje de forma manual
+exports.postCustomSigning = async (req, res) => {
+    let id = `${new Date().toLocaleString('es-ES', { month: 'long' }).charAt(0).toUpperCase() + new Date().toLocaleString('es-ES', { month: 'long' }).slice(1)} ${new Date().getFullYear()}`;
+    const { Empleado, Tipo, Localizacion, Fecha_hora } = req.body;
+
+    try {
+        const response = await notion.pages.create({
+            parent: {
+                database_id: db.fichajeDb,
+            },
+            properties: {
+                Fecha_hora: {
+                    date: {
+                        start: Fecha_hora
+                    },
+                },
+                Empleado: {
+                    relation: [{
+                        id: Empleado
+                    },],
+                },
+                Tipo: {
+                    select: {
+                        name: Tipo,
+                    }
+                },
+                Localizacion: { relation: [{ id: Localizacion }] },
+                Id: {
+                    title: [{
+                        text: {
+                            content: id
+                        }
+                    }
+                    ]
+                }
+            },
+        });
+        res.send(response);
+    } catch (error) {
+        console.log(error);
+    }
+};
+
 // Actualizo un fichaje
 exports.updateSigning = async (req, res) => {
     const { id } = req.params;

@@ -5,7 +5,7 @@ const dayjs = require('dayjs');
 
 // Comprueba quién no ha fichado a las 9:15 de Lunes a Viernes y envía la notificación de recordatorio
 const job = new CronJob(
-  '15 09 * * 1-5',
+  '24 12 * * 1-5',
   async () => {
     console.log('⏰ Ejecutando recordatorio diario de fichajes…');
 

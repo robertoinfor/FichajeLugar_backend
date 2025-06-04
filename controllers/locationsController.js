@@ -88,6 +88,7 @@ exports.updateLocation = async (req, res) => {
                 },
             },
         );
+        res.status(200).json({ message: "Localización actualizada correctamente", data: response });
     } catch (error) {
         console.error("Error actualizando localización:", error);
         res.status(500).json({ error: error.message });
